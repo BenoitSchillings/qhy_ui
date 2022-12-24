@@ -52,10 +52,13 @@ class qhy_cam:
     
         self.qc.SetBit(16)
         self.qc.SetUSB(1)
+        self.qc.SetTemperature(temp)
+        
         self.qc.SetROI(0,0,sx,sy)
         self.qc.SetExposure(self.dt*1000)
-    
+        print(self.qc.GetTemperature())
         self.qc.SetGain(gain)
+        print(self.qc.pixelw)
         
 
  
@@ -177,7 +180,12 @@ class UI:
 
         self.txt2 = QtWidgets.QLabel(self.win)
         rightlayout.layout().addWidget(self.txt2)
-        self.txt1.setText("status_text 2")
+        self.txt2.setText("status_text 2")
+
+        self.txt3 = QtWidgets.QLabel(self.win)
+        rightlayout.layout().addWidget(self.txt3)
+        self.txt3.setText("status_text 3")
+
 
 
         self.statusBar.addPermanentWidget(rightlayout)
@@ -185,7 +193,7 @@ class UI:
         self.win.setStatusBar(self.statusBar)
         
       
-        self. win.setWindowTitle('emccd')
+        self. win.setWindowTitle('qhycam')
         self.imv.getImageItem().mouseClickEvent = self.click
         self.cnt = 0
 
@@ -256,8 +264,7 @@ class UI:
        
 
         sub = self.array[int(pos.y())-self.EDGE:int(pos.y())+self.EDGE, int(pos.x())-self.EDGE:int(pos.x())+self.EDGE].copy()
-        #sub = np.rot90(sub, 1)
-        #sub = np.flip(sub, axis=0)
+
         min = np.min(sub)
         max = np.max(sub)
         fwhm = fit_gauss_circular(sub)
@@ -272,6 +279,10 @@ class UI:
                 p0 = sky.GetRaDec()
                 
                 self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
+
+            temp = camera.qc.GetTemperature()
+            self.txt3.setText("Temp = " + str(temp))
+
 
         sub = sub - min
         max = max - min
@@ -340,7 +351,7 @@ if __name__ == "__main__":
 
 
 
-    camera = qhy_cam(-10, args.exp, args.gain, 1800, 800)
+    camera = qhy_cam(-12, args.exp, args.gain, 1800, 800)
     ui = UI(args, 1800, 800)
     
     camera.start()

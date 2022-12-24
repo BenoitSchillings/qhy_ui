@@ -59,7 +59,18 @@ class qhyccd():
                 byref(self.w), byref(self.h), byref(self.pixelw),
                 byref(self.pixelh), byref(self.bpp))
         self.roi_w = self.w
-        self.roi_h = self.h #TODO: keep roi between stream mode change
+        self.roi_h = self.h
+        
+        self.sx = c_uint()
+        self.sy = c_uint()
+
+        self.size_x = c_uint()
+        self.size_y = c_uint()
+
+        self.sdk.GetQHYCCDEffectiveArea(self.cam, byref(self.sx), byref(self.sy),
+                                        byref(self.size_x), byref(self.size_y))
+
+        print(self.size_x)
         self.imgdata = (ctypes.c_uint8 * self.w.value* self.h.value)()
         self.SetExposure( self.exposureMS )
         self.SetBit(self.bpp.value)
@@ -104,6 +115,12 @@ class qhyccd():
         self.bpp.value = bpp
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, c_double(bpp))
 
+    def SetTemperature(self, temp):
+    	self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_COOLER, c_double(temp))
+        
+    def GetTemperature(self):
+       return self.sdk.GetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_CURTEMP)
+        
     """ Set camera ROI """
     def SetROI(self, x0, y0, roi_w, roi_h):
         self.roi_w =  c_uint(roi_w)
