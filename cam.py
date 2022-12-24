@@ -46,16 +46,16 @@ def denoise_image(image, wavelet="db1", thresholding="soft"):
 
 
 class qhy_cam:
-    def __init__(self, temp, sx, sy):
+    def __init__(self, temp, exp, gain, sx, sy):
         self.qc = qhyccd.qhyccd()
-        self.dt = 0.00002
+        self.dt = exp
     
         self.qc.SetBit(16)
         self.qc.SetUSB(1)
         self.qc.SetROI(0,0,sx,sy)
         self.qc.SetExposure(self.dt*1000)
     
-        self.qc.SetGain(1)
+        self.qc.SetGain(gain)
         
 
  
@@ -65,8 +65,9 @@ class qhy_cam:
 
         return self.frame
         
-    def start(self, exposure):
+    def start(self):
         self.running = 1
+
         self.qc.BeginLive()
         
     def close(self):
@@ -201,7 +202,6 @@ class UI:
         if (self.update_state == 1):
             self.update_button.setText("fast_update")
             self.update_state = 0
-          
         else:
             self.update_button.setText("slow_update")
             self.update_state = 1
@@ -244,7 +244,7 @@ class UI:
         if (pos.y() > (self.sy-self.EDGE)):
             pos.setY(self.sy-self.EDGE)
 
-        print(pos)
+        #print(pos)
         return pos
 
     def update(self):
@@ -323,8 +323,8 @@ class UI:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--filename", type=str, default = 'emccd_capture_', help="generic file name")
-    parser.add_argument("-exp", type=float, default = 1.0, help="exposure in seconds (default 1.0)")
-    parser.add_argument("-gain", "--gain", type=int, default = 101, help="camera gain (default 200)")
+    parser.add_argument("-exp", type=float, default = 0.1, help="exposure in seconds (default 0.1)")
+    parser.add_argument("-gain", "--gain", type=int, default = 100, help="camera gain (default 100)")
     parser.add_argument("-bin", "--bin", type=int, default = 1, help="camera binning (default 1-6)")
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
     parser.add_argument("-count", "--count", type=int, default = 100, help="number of frames to capture")
@@ -340,10 +340,10 @@ if __name__ == "__main__":
 
 
 
-    camera = qhy_cam(-80, 1800, 800)
+    camera = qhy_cam(-10, args.exp, args.gain, 1800, 800)
     ui = UI(args, 1800, 800)
     
-    camera.start(0.03)
+    camera.start()
 
     ui.mainloop(args, camera)
 
