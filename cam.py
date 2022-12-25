@@ -46,26 +46,23 @@ def denoise_image(image, wavelet="db1", thresholding="soft"):
 
 
 class qhy_cam:
-    def __init__(self, temp, exp, gain, sx, sy):
+    def __init__(self, temp, exp, gain):
         self.qc = qhyccd.qhyccd()
         self.dt = exp
-    
+        self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(1)
         self.qc.SetTemperature(temp)
         
-        self.qc.SetROI(0,0,sx,sy)
+        self.qc.SetROI(0,0,self.qc.image_size_x,self.qc.image_size_y)
         self.qc.SetExposure(self.dt*1000)
         print(self.qc.GetTemperature())
         self.qc.SetGain(gain)
         print(self.qc.pixelw)
         
-
  
     def get_frame(self):        
         self.frame = self.qc.GetLiveFrame()
-        
-
         return self.frame
         
     def start(self):
@@ -79,7 +76,6 @@ class qhy_cam:
 
 
 #-------------------------------------app = QApplication(sys.argv)-------------------
-
 
 class FrameWindow(QtWidgets.QMainWindow):
 
@@ -351,8 +347,8 @@ if __name__ == "__main__":
 
 
 
-    camera = qhy_cam(-12, args.exp, args.gain, 1800, 800)
-    ui = UI(args, 1800, 800)
+    camera = qhy_cam(-12, args.exp, args.gain)
+    ui = UI(args, camera.qc.image_size_x, camera.qc.image_size_y)
     
     camera.start()
 

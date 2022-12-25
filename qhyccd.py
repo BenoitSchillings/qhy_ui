@@ -18,7 +18,7 @@ Basic functions to control qhyccd camera
 
 #TODO: fail to change steammode inside sdk
 """
-
+800
 class qhyccd():
     def __init__(self):
         # create sdk handle
@@ -61,27 +61,50 @@ class qhyccd():
         self.roi_w = self.w
         self.roi_h = self.h
         
-        self.sx = c_uint()
-        self.sy = c_uint()
 
-        self.size_x = c_uint()
-        self.size_y = c_uint()
 
-        self.sdk.GetQHYCCDEffectiveArea(self.cam, byref(self.sx), byref(self.sy),
-                                        byref(self.size_x), byref(self.size_y))
-
-        print(self.size_x)
         self.imgdata = (ctypes.c_uint8 * self.w.value* self.h.value)()
         self.SetExposure( self.exposureMS )
         self.SetBit(self.bpp.value)
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_GAIN, c_double(600))
-        self.SetROI(0, 0, self.w.value, self.h.value)
+        self.SetROI(0, 0, 1800,800)
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(20))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
         # Cooler to -15
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_COOLER, c_double(-15))
+        
+
+    def GetSize(self):
+        tx = c_uint()
+        ty = c_uint()
+
+        sx = c_uint()
+        sy = c_uint()
+
+        self.sdk.GetQHYCCDEffectiveArea(self.cam, byref(tx), byref(ty),
+                                        byref(sx), byref(sy))
+        
+        self.image_start_x = tx.value
+        self.image_start_y = ty.value
+        self.image_size_x = sx.value
+        self.image_size_y = sy.value
+
+        print(self.image_start_x, self.image_start_y, self.image_size_x, self.image_size_y)
+
+
+        self.sdk.GetQHYCCDOverScanArea(self.cam, byref(tx), byref(ty),
+                                        byref(sx), byref(sy))
+        
+        self.overscan_start_x = tx.value
+        self.overscan_start_y = ty.value
+        self.overscan_size_x = sx.value
+        self.overscan_size_y = sy.value
+
+
+        print(self.overscan_start_x, self.overscan_start_y, self.overscan_size_x, self.overscan_size_y)
+
 
     def SetStreamMode(self, mode):
         """ TODO: Unable to change"""
