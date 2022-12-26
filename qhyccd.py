@@ -8,7 +8,7 @@ from libqhy import *
 from sys import platform
 
 import sys
-
+import cv2
 
 """
 Basic functions to control qhyccd camera
@@ -23,6 +23,7 @@ class qhyccd():
     def __init__(self):
         # create sdk handle
         #self.sdk= CDLL()
+      
         self.sdk= CDLL('/usr/local/lib/libqhyccd.so.22.7.10.17')
         #name = 'C:/Users/benoi/qhysdk/x64/qhyccd.dll'
         #self.sdk = windll.LoadLibrary(name)
@@ -34,6 +35,12 @@ class qhyccd():
         self.exposureMS = 100 # 100ms
         self.connect(self.mode)
 
+    def GetModeName(self, mode_number):
+        mode_char_array_32 = c_char*32
+        mode = mode_char_array_32()
+        self.sdk.GetQHYCCDReadModeName(self.cam, mode_number, mode)
+        return mode.value
+
     def connect(self, mode):
         ret = -1
         self.sdk.InitQHYCCDResource()
@@ -43,7 +50,8 @@ class qhyccd():
         self.sdk.GetQHYCCDId(c_int(0), self.id)    # open the first camera
         print("Open camera:", self.id.value)
         self.cam = self.sdk.OpenQHYCCD(self.id)
-        
+        print(self.GetModeName(1))
+        self.sdk.SetQHYCCDReadMode(self.cam, 1)
         self.sdk.SetQHYCCDStreamMode(self.cam, self.mode)  
         self.sdk.InitQHYCCD(self.cam)
 
@@ -126,6 +134,12 @@ class qhyccd():
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_GAIN, c_double(gain))
         print("Set gain to", 
                 self.sdk.GetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_GAIN)/1)
+
+
+    def SetOffset(self, offset):
+       self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_OFFSET, c_double(offset))
+        
+
 
     """ Set camera gain """
     def SetUSB(self, usbrate):

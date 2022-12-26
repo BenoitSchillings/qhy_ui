@@ -13,7 +13,7 @@ from PyQt5.QtGui  import *
 from PyQt5.QtCore import *
 import os
 import qhyccd
-import pywt
+from astropy.io import fits
 
 from util import *
 import datetime
@@ -46,15 +46,23 @@ def denoise_image(image, wavelet="db1", thresholding="soft"):
 
 
 class qhy_cam:
-    def __init__(self, temp, exp, gain):
+    def __init__(self, temp, exp, gain, crop):
         self.qc = qhyccd.qhyccd()
         self.dt = exp
         self.qc.GetSize()
         self.qc.SetBit(16)
-        self.qc.SetUSB(1)
+        self.qc.SetUSB(11)
+        self.qc.SetOffset(55)
         self.qc.SetTemperature(temp)
-        
-        self.qc.SetROI(0,0,self.qc.image_size_x,self.qc.image_size_y)
+        self.sizex = int(self.qc.image_size_x * crop)
+        self.sizey = int(self.qc.image_size_y * crop)
+
+        ddx = self.qc.image_size_x - self.sizex
+        ddy = self.qc.image_size_y  -self.sizey
+        ddx = ddx // 2
+        ddy = ddy // 2
+
+        self.qc.SetROI(ddx,ddy,ddx + self.sizex,ddy + self.sizey)
         self.qc.SetExposure(self.dt*1000)
         print(self.qc.GetTemperature())
         self.qc.SetGain(gain)
@@ -74,6 +82,12 @@ class qhy_cam:
         self.running = 0
         self.qc.StopLive()
 
+    def size_x(self):
+        return self.sizex
+    
+    def size_y(self):
+        return self.sizey
+
 
 #-------------------------------------app = QApplication(sys.argv)-------------------
 
@@ -85,7 +99,7 @@ class FrameWindow(QtWidgets.QMainWindow):
 
 
     def closeEvent(self, event):
-        self.quit = 1
+        self.quit = 148
         print("quit")
         QtWidgets.QMainWindow.closeEvent(self, event)
 
@@ -94,7 +108,8 @@ class FrameWindow(QtWidgets.QMainWindow):
 class UI:
     def click(self, event):
         event.accept()      
-        self.pos = event.pos()
+        self.pos = event.pos(# Cooler to -15
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_COOLER, c_double(-15)))
         print (int(self.pos.x()),int(self.pos.y()))
 
     def convert_nparray_to_QPixmap(self,img):
@@ -110,6 +125,8 @@ class UI:
     def __init__(self,  args, sx, sy):
         self.sx = sx
         self.sy = sy
+        self.t0 = time.perf_counter()
+        self.idx = 0
         self.capture_state = 0
         self.update_state = 1
         self.rms = 0
@@ -254,8 +271,22 @@ class UI:
     def update(self):
         #self.array = denoise_image(self.array.copy())
         #print(self.array)
-        self.imv.setImage(np.flip(np.rot90(self.array), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
-      
+        
+
+        #print(fps)
+        
+        #if (self.idx <= 1):
+        #    print("init")
+        #    self.sum = self.array * 1.0
+        #else:
+        #    self.sum = self.sum + self.array
+
+        #if (self.idx % 100 == 0):    
+        #    hdr = fits.header.Header()
+        #    fits.writeto("result.fits", (self.sum/self.idx).astype(np.float32), hdr, overwrite=True)
+ 
+        self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
+
         pos = self.clip(self.pos)
        
 
@@ -277,7 +308,7 @@ class UI:
                 self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
 
             temp = camera.qc.GetTemperature()
-            self.txt3.setText("Temp = " + str(temp))
+            self.txt3.setText("Temp = " + str(temp) + " fps=" + "{:.2f}".format(self.fps))
 
 
         sub = sub - min
@@ -292,9 +323,10 @@ class UI:
 
     def mainloop(self, args, camera):
 
- 
+        mean_old = 0.0
+
         while(self.win.quit == 0):
-            time.sleep(0.008)
+            time.sleep(0.002)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 print("move at " + str(rx) + " " + str(ry))
@@ -302,25 +334,34 @@ class UI:
             self.statusBar.showMessage(str(self.cnt), 2000)
             app.processEvents()
             self.array = camera.get_frame()
-            if (self.capture_state == 1):
-                self.capture_file.add_image(self.array)
-                if (self.cnt > 3000):
-                    self.toggle_capture()
-                    self.toggle_capture()
+            mean_new = np.mean(self.array)
 
-            need_update = False
-            if (self.update_state == 1):
-                need_update = True
-            if (self.update_state == 0 and self.cnt % 30 == 0):
-                need_update = True
-            #if (self.cnt % 30 == 15):
-                #print(camera.vcam.temp)
+            if (mean_new != mean_old):
+                mean_old = mean_new
+                if (self.capture_state == 1):
+                    self.capture_file.add_image(self.array)
+                    if (self.cnt > 1000):
+                        self.toggle_capture()
+                        self.toggle_capture()
+                
+                self.idx = self.idx + 1
+                self.t1 = time.perf_counter()
 
-            if (need_update):
-                self.update()
-             #if (cnt % 10 == 0):
-            #    imv.ui.histogram.setImageItem(pg.ImageItem(array))
-            self.cnt = self.cnt + 1
+                self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
+                
+                need_update = False
+                if (self.update_state == 1):
+                    need_update = True
+                if (self.update_state == 0 and self.cnt % 30 == 0):
+                    need_update = True
+                #if (self.cnt % 30 == 15):
+                    #print(camera.vcam.temp)
+
+                if (need_update):
+                    self.update()
+                #if (cnt % 10 == 0):
+                #    imv.ui.histogram.setImageItem(pg.ImageItem(array))
+                self.cnt = self.cnt + 1
 
         if (self.capture_state == 1):
             self.capture_file.close()
@@ -335,6 +376,7 @@ if __name__ == "__main__":
     parser.add_argument("-bin", "--bin", type=int, default = 1, help="camera binning (default 1-6)")
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
     parser.add_argument("-count", "--count", type=int, default = 100, help="number of frames to capture")
+    parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     args = parser.parse_args()
 
     try:
@@ -347,8 +389,8 @@ if __name__ == "__main__":
 
 
 
-    camera = qhy_cam(-12, args.exp, args.gain)
-    ui = UI(args, camera.qc.image_size_x, camera.qc.image_size_y)
+    camera = qhy_cam(-10, args.exp, args.gain, args.crop)
+    ui = UI(args, camera.size_x(), camera.size_y())
     
     camera.start()
 
