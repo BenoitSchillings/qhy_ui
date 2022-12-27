@@ -34,16 +34,6 @@ app = QtWidgets.QApplication([])
 import argparse
 #--------------------------------------------------------
 
-def denoise_image(image, wavelet="db1", thresholding="soft"):
-    # Perform a 2D wavelet transform on the image
-    coeffs = pywt.wavedec2(image, wavelet)
-    print(len(coeffs))
-    denoised_coeffs = pywt.threshold(coeffs, value = 20)
-     # Reconstruct the image from the thresholded coefficients
-    denoised_image = pywt.waverec2(denoised_coeffs, wavelet)
-    
-    return denoised_image
-
 
 class qhy_cam:
     def __init__(self, temp, exp, gain, crop):
@@ -120,10 +110,10 @@ class UI:
 
         return qpixmap
 
-        self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
+        
 
 
-    def __init__(self,  args, sx, sy):
+    def __init__(self,  args, sx, sy, count):
         self.sx = sx
         self.sy = sy
         self.t0 = time.perf_counter()
@@ -133,6 +123,7 @@ class UI:
         self.rms = 0
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
+        self.frame_per_file = count
         
         self.win = FrameWindow()
         self.EDGE = 16
@@ -269,6 +260,19 @@ class UI:
         #print(pos)
         return pos
 
+    def update_status(self):
+        self.txt1.setText("FWHM= " + "{:.2f}  ".format(self.fwhm) + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
+        self.updateplot(self.fwhm)
+
+        if (self.cnt % 30 == 0):
+            if not (sky is None):
+                p0 = sky.GetRaDec()
+                
+                self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
+
+            self.temp = camera.qc.GetTemperature()
+            self.txt3.setText("Temp = " + str(self.temp) + " fps=" + "{:.2f}".format(self.fps))
+
     def update(self):
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
 
@@ -277,27 +281,20 @@ class UI:
 
         sub = self.array[int(pos.y())-self.EDGE:int(pos.y())+self.EDGE, int(pos.x())-self.EDGE:int(pos.x())+self.EDGE].copy()
 
-        min = np.min(sub)
-        max = np.max(sub)
-        fwhm = fit_gauss_circular(sub)
+        self.min = np.min(sub)
+        self.max = np.max(sub)
+
+        if ((self.max - self.min) > self.rms * 20):
+            self.fwhm = fit_gauss_circular(sub)
+        else:
+            self.fwhm = 1.0
 
         self.rms = np.std(self.array)
 
-        self.txt1.setText("FWHM= " + "{:.2f}  ".format(fwhm) + "min=" + str(min) + " max=" + str(max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
-        self.updateplot(fwhm)
+        self.update_status()
 
-        if (self.cnt % 30 == 0):
-            if not (sky is None):
-                p0 = sky.GetRaDec()
-                
-                self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
-
-            temp = camera.qc.GetTemperature()
-            self.txt3.setText("Temp = " + str(temp) + " fps=" + "{:.2f}".format(self.fps))
-
-
-        sub = sub - min
-        max = max - min
+        sub = sub - self.min
+        max = self.max - self.min
         sub =  sub * (65535.0/((max+1)))
         sub = sub.astype(np.uint16)
         sub = cv2.resize(sub, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
@@ -328,7 +325,7 @@ class UI:
                     if (self.cnt > 3000):
                         self.toggle_capture()
                         self.toggle_capture()
-                
+                self.frame_per_file
                 self.idx = self.idx + 1
                 self.t1 = time.perf_counter()
 
@@ -362,6 +359,7 @@ if __name__ == "__main__":
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
     parser.add_argument("-count", "--count", type=int, default = 100, help="number of frames to capture")
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
+    parser.add_argument("-auto", "--auto", type=int, default = 0, help="auto start stop capture")
     args = parser.parse_args()
 
     try:
@@ -375,7 +373,7 @@ if __name__ == "__main__":
 
 
     camera = qhy_cam(-10, args.exp, args.gain, args.crop)
-    ui = UI(args, camera.size_x(), camera.size_y())
+    ui = UI(args, camera.size_x(), camera.size_y(), args.count)
     
     camera.start()
 
