@@ -64,7 +64,7 @@ class Ser(object):
         self.image_size = self.xsize * self.ysize
 
     def read_at(self, pos, size, ntype):
-        print(pos)
+        #print(pos)
         self._fid.seek(pos)
         return np.fromfile(self._fid, ntype, size)
         
@@ -101,6 +101,7 @@ import cv2
 
 if __name__ == "__main__":
     import sys
+    fid1.close()
     
     
     fid = Ser(sys.argv[-1])
