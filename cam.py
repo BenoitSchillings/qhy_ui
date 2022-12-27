@@ -113,13 +113,18 @@ class UI:
         
 
 
-    def __init__(self,  args, sx, sy, count):
+    def __init__(self,  args, sx, sy, count, auto):
         self.sx = sx
         self.sy = sy
         self.t0 = time.perf_counter()
         self.idx = 0
         self.capture_state = 0
         self.update_state = 1
+        self.auto = auto
+        
+        if (self.auto != 0):
+        	self.capture_state = 1
+        	
         self.rms = 0
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
@@ -322,10 +327,13 @@ class UI:
                 mean_old = mean_new
                 if (self.capture_state == 1):
                     self.capture_file.add_image(self.array)
-                    if (self.cnt > 3000):
+                    if (self.cnt > self.frame_per_file):
                         self.toggle_capture()
+                        if (self.auto != 0):
+                        	return
+                        	
                         self.toggle_capture()
-                self.frame_per_file
+                
                 self.idx = self.idx + 1
                 self.t1 = time.perf_counter()
 
@@ -373,7 +381,7 @@ if __name__ == "__main__":
 
 
     camera = qhy_cam(-10, args.exp, args.gain, args.crop)
-    ui = UI(args, camera.size_x(), camera.size_y(), args.count)
+    ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto)
     
     camera.start()
 
