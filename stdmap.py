@@ -8,8 +8,8 @@ from astropy.io import fits
 fid = Ser(sys.argv[-1])
 
 mean = fid.load_img(0) * 0.0
-K = 80
-N = 11
+K = 50
+N = 19
 
 for slice in range(N):
     sum = fid.load_img(slice*K)
@@ -39,6 +39,7 @@ print(np.percentile(mean, 80))
 print(np.percentile(mean, 97))
 cval = np.percentile(mean, 99)
 
+print("mean noise std is " + str(np.mean(mean)) + " clip =" + str(cval))
 mean = np.clip(mean, cval, cval + 1)
 mean = mean - cval
 

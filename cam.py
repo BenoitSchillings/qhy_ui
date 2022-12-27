@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import cv2
 import astropy
-from astropy.io import fits
+
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore, QT_LIB
 from PyQt5 import QtWidgets
@@ -52,7 +52,7 @@ class qhy_cam:
         self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(11)
-        self.qc.SetOffset(55)
+        self.qc.SetOffset(44)
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
         self.sizey = int(self.qc.image_size_y * crop)
@@ -120,6 +120,7 @@ class UI:
 
         return qpixmap
 
+        self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
 
 
     def __init__(self,  args, sx, sy):
@@ -212,7 +213,7 @@ class UI:
 
         self.capture_button.clicked.connect(self.Capture_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
-        
+        import sys
         self.win.show()
     
 
@@ -269,22 +270,6 @@ class UI:
         return pos
 
     def update(self):
-        #self.array = denoise_image(self.array.copy())
-        #print(self.array)
-        
-
-        #print(fps)
-        
-        #if (self.idx <= 1):
-        #    print("init")
-        #    self.sum = self.array * 1.0
-        #else:
-        #    self.sum = self.sum + self.array
-
-        #if (self.idx % 100 == 0):    
-        #    hdr = fits.header.Header()
-        #    fits.writeto("result.fits", (self.sum/self.idx).astype(np.float32), hdr, overwrite=True)
- 
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
 
         pos = self.clip(self.pos)
@@ -340,7 +325,7 @@ class UI:
                 mean_old = mean_new
                 if (self.capture_state == 1):
                     self.capture_file.add_image(self.array)
-                    if (self.cnt > 1000):
+                    if (self.cnt > 3000):
                         self.toggle_capture()
                         self.toggle_capture()
                 
@@ -352,7 +337,7 @@ class UI:
                 need_update = False
                 if (self.update_state == 1):
                     need_update = True
-                if (self.update_state == 0 and self.cnt % 30 == 0):
+                if (self.update_state == 0 and self.cnt % 10 == 0):
                     need_update = True
                 #if (self.cnt % 30 == 15):
                     #print(camera.vcam.temp)

@@ -23,8 +23,10 @@ class qhyccd():
     def __init__(self):
         # create sdk handle
         #self.sdk= CDLL()
-      
-        self.sdk= CDLL('/usr/local/lib/libqhyccd.so.22.7.10.17')
+        self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
+        self.tmp = CDLL('/usr/local/lib/libopencv_imgproc.so', mode=ctypes.RTLD_GLOBAL)
+
+        self.sdk= CDLL('/usr/local/lib/libqhyccd.so.22.10.14.17')
         #name = 'C:/Users/benoi/qhysdk/x64/qhyccd.dll'
         #self.sdk = windll.LoadLibrary(name)
         self.sdk.GetQHYCCDParam.restype = c_double
@@ -80,8 +82,7 @@ class qhyccd():
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
-        # Cooler to -15
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_COOLER, c_double(-15))
+        
         
 
     def GetSize(self):
