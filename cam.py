@@ -54,7 +54,7 @@ class qhy_cam:
 
         self.qc.SetROI(ddx,ddy,ddx + self.sizex,ddy + self.sizey)
         self.qc.SetExposure(self.dt*1000)
-        print(self.qc.GetTemperature())
+       
         self.qc.SetGain(gain)
         
         print(self.qc.pixelw)
@@ -111,11 +111,12 @@ class UI:
         
 
 
-    def __init__(self,  args, sx, sy, count, auto):
+    def __init__(self,  args, sx, sy, count, auto, fits):
         self.sx = sx
         self.sy = sy
         self.t0 = time.perf_counter()
         self.idx = 0
+        self.fits = fits
         self.capture_state = 0
         self.update_state = 1
         self.auto = auto
@@ -223,21 +224,35 @@ class UI:
             self.update_button.setText("slow_update")
             self.update_state = 1
 
+    def add_to_save(self, buffer):
+        print("add")
+        if (self.fits == 0):
+            self.capture_file.add_image(self.array)
+        else:
+            fn = self.filename.text() + str(time.time_ns()) + ".fits"
+            print(fn)
+            hdr = fits.header.Header()
+            fits.writeto(fn, buffer, hdr, overwrite=True)
+
 
     def toggle_capture(self):
         if (self.capture_state == 0):
             
             self.capture_button.setText("Stop Capture")
             vnow = time.time_ns()
-            self.capture_filename = self.filename.text() + str(vnow) + ".ser"
-            self.capture_file = SerWriter(self.capture_filename)
-            self.capture_file.set_sizes(self.sx, self.sy, 2)
-            self.capture_state = 1
+
+            if (self.fits == 0):
+                self.capture_filename = self.filename.text() + str(vnow) + ".ser"
+                self.capture_file = SerWriter(self.capture_filename)
+                self.capture_file.set_sizes(self.sx, self.sy, 2)
+                
             self.cnt = 0
+            self.capture_state = 1
         else:
             self.capture_state = 0
             self.capture_button.setText("Start Capture")
-            self.capture_file.close()
+            if (self.fits == 0):
+                self.capture_file.close()
 
     def Capture_buttonClick(self):
         self.toggle_capture()
@@ -278,6 +293,13 @@ class UI:
             self.txt3.setText("Temp = " + str(self.temp) + " fps=" + "{:.2f}".format(self.fps))
 
     def update(self):
+        def possible_star(array):
+            max = np.max(array)
+            min = np.min(array)
+            std = np.std(array)
+
+            return ((max - min) > (std*10))
+
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
 
         pos = self.clip(self.pos)
@@ -288,7 +310,7 @@ class UI:
         self.min = np.min(sub)
         self.max = np.max(sub)
 
-        if ((self.max - self.min) > self.rms * 20):
+        if possible_star(sub):
             self.fwhm = fit_gauss_circular(sub)
         else:
             self.fwhm = 1.0
@@ -317,7 +339,7 @@ class UI:
                 rx, ry = self.mover.rate()
                 print("move at " + str(rx) + " " + str(ry))
             
-            self.statusBar.showMessage(str(self.cnt), 2000)
+            
             app.processEvents()
             self.array = camera.get_frame()
             mean_new = np.mean(self.array)
@@ -327,7 +349,8 @@ class UI:
 
 
                 if (self.capture_state == 1):
-                    self.capture_file.add_image(self.array)
+                    self.add_to_save(self.array)
+                    
                     if (self.cnt > self.frame_per_file):
                         self.toggle_capture()
                         if (self.auto != 0):
@@ -348,8 +371,7 @@ class UI:
 
                 if (need_update):
                     self.update()
-                #if (cnt % 10 == 0):
-                #    imv.ui.histogram.setImageItem(pg.ImageItem(array))
+
                 self.cnt = self.cnt + 1
 
         if (self.capture_state == 1):
@@ -367,6 +389,7 @@ if __name__ == "__main__":
     parser.add_argument("-count", "--count", type=int, default = 100, help="number of frames to capture")
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="auto start stop capture")
+    parser.add_argument("-fits", "--fits", type=int, default = 0, help="save as fits files")
     args = parser.parse_args()
 
     try:
@@ -380,7 +403,7 @@ if __name__ == "__main__":
 
 
     camera = qhy_cam(-10, args.exp, args.gain, args.crop)
-    ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto)
+    ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
     camera.start()
 
