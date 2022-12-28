@@ -276,7 +276,6 @@ class UI:
         if (pos.y() > (self.sy-self.EDGE)):
             pos.setY(self.sy-self.EDGE)
 
-        #print(pos)
         return pos
 
     def update_status(self):

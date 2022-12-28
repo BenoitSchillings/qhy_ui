@@ -19,4 +19,4 @@ fid.close()
 mean = mean / N
 hdr = fits.header.Header()
 fits.writeto(sys.argv[2], (mean).astype(np.float32), hdr, overwrite=True)
-    
+
