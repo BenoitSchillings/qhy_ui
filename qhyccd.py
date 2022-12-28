@@ -75,17 +75,19 @@ class qhyccd():
 
 
         self.imgdata = (ctypes.c_uint8 * self.w.value* self.h.value)()
-        self.SetExposure( self.exposureMS )
+        self.SetExposure( 10)
         self.SetBit(self.bpp.value)
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_GAIN, c_double(600))
-        self.SetROI(0, 0, 1800,800)
+        
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(20))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
+        self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
         self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
+        self.SetDDR(0)
+        print("ddr", self.GetDDR())
         
 
     def GetSize(self):
@@ -161,6 +163,14 @@ class qhyccd():
         
     def GetTemperature(self):
        return self.sdk.GetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_CURTEMP)
+
+    def GetDDR(self):
+       return self.sdk.GetQHYCCDParam(self.cam, CONTROL_ID.DDR_BUFFER_CAPACITY)
+
+
+    def SetDDR(self, value):
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(value))
+        
         
     """ Set camera ROI """
     def SetROI(self, x0, y0, roi_w, roi_h):
