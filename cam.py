@@ -97,8 +97,7 @@ class FrameWindow(QtWidgets.QMainWindow):
 class UI:
     def click(self, event):
         event.accept()      
-        self.pos = event.pos(# Cooler to -15
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_COOLER, c_double(-15)))
+        self.pos = event.pos()
         print (int(self.pos.x()),int(self.pos.y()))
 
     def convert_nparray_to_QPixmap(self,img):
@@ -325,6 +324,8 @@ class UI:
 
             if (mean_new != mean_old):
                 mean_old = mean_new
+
+
                 if (self.capture_state == 1):
                     self.capture_file.add_image(self.array)
                     if (self.cnt > self.frame_per_file):
@@ -344,8 +345,6 @@ class UI:
                     need_update = True
                 if (self.update_state == 0 and self.cnt % 10 == 0):
                     need_update = True
-                #if (self.cnt % 30 == 15):
-                    #print(camera.vcam.temp)
 
                 if (need_update):
                     self.update()

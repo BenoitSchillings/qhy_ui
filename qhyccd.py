@@ -52,9 +52,10 @@ class qhyccd():
         self.sdk.GetQHYCCDId(c_int(0), self.id)    # open the first camera
         print("Open camera:", self.id.value)
         self.cam = self.sdk.OpenQHYCCD(self.id)
+        self.StopLive()
         print(self.GetModeName(1))
         self.sdk.SetQHYCCDReadMode(self.cam, 1)
-        self.sdk.SetQHYCCDStreamMode(self.cam, self.mode)  
+        self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         self.sdk.InitQHYCCD(self.cam)
 
         # Get Camera Parameters
@@ -80,9 +81,11 @@ class qhyccd():
         self.SetROI(0, 0, 1800,800)
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(20))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
+        err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
+        print("err", err)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
-        
+        self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         
 
     def GetSize(self):
