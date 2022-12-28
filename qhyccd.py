@@ -196,6 +196,14 @@ class qhyccd():
         self.sdk.StopQHYCCDLive(self.cam)
         #self.sdk.SetQHYCCDStreamMode(self.cam, 0)  # Single Mode
 
+
+    def GetStatus(self):
+        status = (ctypes.c_uint8 * 4)()
+
+        ret = self.sdk.GetQHYCCDCameraStatus(self.cam, status)
+        print("ret ", ret, status)
+        return status 
+
     """ Relase camera and close sdk """
     def close(self):
         self.sdk.CloseQHYCCD(self.cam)

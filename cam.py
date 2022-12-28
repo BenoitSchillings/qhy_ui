@@ -22,7 +22,7 @@ from ser import SerWriter
 import skyx
 import collections
 import math
-4
+
 import mover
 
 sky = skyx.sky6RASCOMTele()
@@ -42,7 +42,7 @@ class qhy_cam:
         self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(11)
-        self.qc.SetOffset(44)
+        self.qc.SetOffset(1144)
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
         self.sizey = int(self.qc.image_size_y * crop)
@@ -56,11 +56,13 @@ class qhy_cam:
         self.qc.SetExposure(self.dt*1000)
         print(self.qc.GetTemperature())
         self.qc.SetGain(gain)
+        
         print(self.qc.pixelw)
         
  
     def get_frame(self):        
         self.frame = self.qc.GetLiveFrame()
+        #self.qc.GetStatus()
         return self.frame
         
     def start(self):
@@ -79,8 +81,6 @@ class qhy_cam:
         return self.sizey
 
 
-#-------------------------------------app = QApplication(sys.argv)-------------------
-
 class FrameWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent=None):
@@ -93,7 +93,6 @@ class FrameWindow(QtWidgets.QMainWindow):
         print("quit")
         QtWidgets.QMainWindow.closeEvent(self, event)
 
-#--------------------------------------------------------
 
 class UI:
     def click(self, event):
@@ -122,9 +121,7 @@ class UI:
         self.update_state = 1
         self.auto = auto
         
-        if (self.auto != 0):
-        	self.capture_state = 1
-        	
+      	
         self.rms = 0
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
@@ -210,6 +207,9 @@ class UI:
         self.capture_button.clicked.connect(self.Capture_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
         import sys
+        if (self.auto != 0):
+                self.toggle_capture()
+  
         self.win.show()
     
 
