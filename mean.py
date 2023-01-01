@@ -9,11 +9,12 @@ fid = Ser(sys.argv[1])
 
 mean = fid.load_img(0) * 1.0
 N = fid.count
-
+print("count ", fid.count)
 for idx in range(1, N):
     sum = fid.load_img(idx)
     mean = mean + sum
-    print(idx)
+    if (idx % 100 == 0):
+        print(idx)
 fid.close()
 
 mean = mean / N

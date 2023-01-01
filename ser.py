@@ -12,6 +12,7 @@ class SerWriter(object):
         self.write_at(26, np.int32(self.xsize))
         self.write_at(30, np.int32(self.ysize))
         self.write_at(34, np.int32(self.depth * 8))
+        print("final count is ", self.count)
         self.write_at(38, np.int32(self.count))
 
     def set_sizes(self, xsize, ysize, depth):

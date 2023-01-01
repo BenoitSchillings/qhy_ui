@@ -42,7 +42,9 @@ class qhy_cam:
         self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(11)
-        self.qc.SetOffset(1144)
+
+        #self.qc.SetOffset(144) for guider
+        self.qc.SetOffset(100) #for imager
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
         self.sizey = int(self.qc.image_size_y * crop)
@@ -215,7 +217,7 @@ class UI:
 
 
     def Update_buttonClick(self):
-        print("button")
+        #print("button")
 
         if (self.update_state == 1):
             self.update_button.setText("fast_update")
@@ -225,7 +227,7 @@ class UI:
             self.update_state = 1
 
     def add_to_save(self, buffer):
-        print("add")
+        #print("add")
         if (self.fits == 0):
             self.capture_file.add_image(self.array)
         else:
