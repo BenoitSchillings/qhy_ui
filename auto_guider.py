@@ -36,6 +36,9 @@ import argparse
 #--------------------------------------------------------
 import pickle
 
+cheat_move_x = 0
+cheat_move_y = 0
+
 class guider:
     def __init__(self, mount, camera):
         print("init")
@@ -132,6 +135,8 @@ class fake_cam:
         self.stars_frame = self.stars(self.frame, 80, gain=2)
 
     def stars(self, image, number, max_counts=10000, gain=1):
+        global cheat_move_y
+        global cheat_move_x
         """
         Add some stars to the image.
         """
@@ -164,7 +169,7 @@ class fake_cam:
         self.frame = np.random.randint(0,512, (512,512), dtype=np.uint16)
         
 
-        return self.frame + self.stars_frame.astype(np.uint16)
+        return self.frame + np.roll(np.roll(self.stars_frame.astype(np.uint16), round(cheat_move_x), axis=0), round(cheat_move_y), axis=1)
         
     def start(self):
         self.running = 1
@@ -335,6 +340,9 @@ class UI:
         rightlayout.layout().addWidget(self.txt3)
         self.txt3.setText("status_text 3")
 
+        self.txt4 = QtWidgets.QLabel(self.win)
+        rightlayout.layout().addWidget(self.txt4)
+        self.txt4.setText("status_text 4")
 
 
         self.statusBar.addPermanentWidget(rightlayout)
@@ -412,6 +420,7 @@ class UI:
         max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
         cy, cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
         print(cx, cy)
+        self.txt4.setText("X="  + "{:.2f}".format(cx) + "Y="  + "{:.2f}".format(cy))
 
         
         pos = self.clip(self.pos)
@@ -439,6 +448,8 @@ class UI:
 
 
     def mainloop(self, args, camera):
+        global cheat_move_y
+        global cheat_move_x
 
         mean_old = 0.0
 
@@ -446,6 +457,9 @@ class UI:
             time.sleep(0.002)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
+                cheat_move_x = cheat_move_x + rx
+                cheat_move_y = cheat_move_y + ry
+               
                 print("move at " + str(rx) + " " + str(ry))
             
             
