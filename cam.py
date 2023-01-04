@@ -398,12 +398,13 @@ if __name__ == "__main__":
     except:
         sky = None
 
+    print("SKY ", sky)
     #if not (sky is None):
         #sky.bump(120,0)
 
 
 
-    camera = qhy_cam(-10, args.exp, args.gain, args.crop)
+    camera = qhy_cam(-5, args.exp, args.gain, args.crop)
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
     camera.start()

@@ -36,6 +36,7 @@ class qhyccd():
         self.bpp = c_uint(8) # 8 bit
         self.exposureMS = 100 # 100ms
         self.connect(self.mode)
+        self.ClearBuffers()
 
     def GetModeName(self, mode_number):
         mode_char_array_32 = c_char*32
@@ -45,6 +46,7 @@ class qhyccd():
 
     def connect(self, mode):
         ret = -1
+        
         self.sdk.InitQHYCCDResource()
         self.sdk.ScanQHYCCD()
         type_char_array_32 = c_char*32
@@ -54,6 +56,7 @@ class qhyccd():
         self.cam = self.sdk.OpenQHYCCD(self.id)
         self.StopLive()
         print(self.GetModeName(1))
+        #self.sdk.resetDev(self.cam)
         self.sdk.SetQHYCCDReadMode(self.cam, 1)
         self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         self.sdk.InitQHYCCD(self.cam)
@@ -86,8 +89,10 @@ class qhyccd():
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
         self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
         self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
-        self.SetDDR(0)
-        print("ddr", self.GetDDR())
+        s#elf.SetDDR(0)
+        #print("ddr", self.GetDDR())
+
+        #print(self.GetSingleFrame())
         
 
     def GetSize(self):
@@ -216,6 +221,12 @@ class qhyccd():
         ret = self.sdk.GetQHYCCDCameraStatus(self.cam, status)
         print("ret ", ret, status)
         return status 
+
+    def ClearBuffers(self):
+        self.sdk.SetQHYCCDWriteFPGA(self.cam, 0, 63, 0)
+        self.sdk.SetQHYCCDWriteFPGA(self.cam, 0, 63, 1)
+        self.sdk.SetQHYCCDWriteFPGA(self.cam , 0, 63, 0)
+
 
     """ Relase camera and close sdk """
     def close(self):
