@@ -49,7 +49,7 @@ class guider:
 
     def start_calibrate(self):
         print("calibrate")
-        self.cal_state = 3
+        self.cal_state = 20
 
     def stop_calibrate(self):
         self.cal_state = 0
@@ -97,7 +97,39 @@ class guider:
         print("set pos", x, y)
 
     def handle_calibrate(self, x, y):
-        print("get calibrate point", x, y)
+        if (self.cal_state == 20):
+            self.pos_x0 = x
+            self.pos_y0 = y
+            print("Move Left")
+
+        if (self.cal_state == 15):
+            self.pos_x1 = x
+            self.pos_y1 = y
+            print("Move Right")
+
+
+        if (self.cal_state == 10):
+            self.pos_x2 = x
+            self.pos_y2 = y
+            print("Move Up")
+
+
+        if (self.cal_state == 5):
+            self.pos_x3 = x
+            self.pos_y3 = y
+            print("Move Down")
+
+
+        if (self.cal_state == 1):
+            self.calc_calibration()
+
+        self.cal_state = self.cal_state - 1
+        if (self.calc_state < 0):
+            self.cal_state = 0
+
+    def calc_calibration(self):
+        print("calc cal")
+
 
     def calibrate_state(self):
         return cal_state
