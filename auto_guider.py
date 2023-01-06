@@ -99,6 +99,10 @@ class guider:
     def set_pos(self, x, y):
         print("set pos", x, y)
 
+    def calibrate(self):
+        self.cal_state = 20
+        self.guide_state = 0
+
     def handle_calibrate(self, x, y):
         if (self.cal_state == 20):
             self.pos_x0 = x
@@ -313,7 +317,7 @@ class UI:
         
 
 
-    def __init__(self,  args, sx, sy):
+    def __init__(self,  args, sx, sy, guider):
         self.sx = sx
         self.sy = sy
         self.t0 = time.perf_counter()
@@ -321,7 +325,7 @@ class UI:
         self.fits = fits
         self.capture_state = 0
         self.update_state = 1
-
+        self.guider = guider
         
       	
         self.rms = 0
@@ -430,6 +434,7 @@ class UI:
 
 
     def Calibrate_buttonClick(self):
+        self.guider.calibrate()
         print("Calibrate")
 
     def Guide_buttonClick(self):
@@ -525,9 +530,9 @@ class UI:
                 mean_old = mean_new
                 max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
                 self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
-                print(self.cx, self.cy)
+                #print(self.cx, self.cy)
 
-                guider.pos_handler(self.cx, self.cy)
+                self.guider.pos_handler(self.cx, self.cy)
                 self.idx = self.idx + 1
                 self.t1 = time.perf_counter()
 
@@ -567,7 +572,7 @@ if __name__ == "__main__":
     camera = fake_cam(-10, args.exp, args.gain, args.crop)
     guider = guider(sky, camera)
 
-    ui = UI(args, camera.size_x(), camera.size_y())
+    ui = UI(args, camera.size_x(), camera.size_y(), guider)
     
     camera.start()
 
