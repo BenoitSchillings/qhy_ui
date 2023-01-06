@@ -88,6 +88,8 @@ class guider:
         self.mount_dy1 = 0
         self.mount_dx2 = 0
         self.mount_dy2 = 0
+        self.guide_state = 0
+        self.cal_state = 0
 
 
 
@@ -159,7 +161,7 @@ class guider:
         print("handler", x, y)
         if self.cal_state != 0:
             self.handle_calibrate(x, y)
-        else:
+        if self.guide_state != 0:
             self.handle_guide(x, y)
 
             
@@ -372,8 +374,10 @@ class UI:
         
         
 
-        self.capture_button =  QtWidgets.QPushButton("Start Guiding")
-        rightlayout.layout().addWidget(self.capture_button)
+        self.calibrate_button =  QtWidgets.QPushButton("Calibrate")
+        rightlayout.layout().addWidget(self.calibrate_button)
+        self.guide_button =  QtWidgets.QPushButton("Guide")
+        rightlayout.layout().addWidget(self.guide_button)
 
         self.update_button =  QtWidgets.QPushButton("slow_update")
         rightlayout.layout().addWidget(self.update_button)
@@ -404,8 +408,9 @@ class UI:
         self.imv.getImageItem().mouseClickEvent = self.click
         self.cnt = 0
 
-        self.capture_button.clicked.connect(self.Capture_buttonClick)
+        self.calibrate_button.clicked.connect(self.Calibrate_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
+        self.guide_button.clicked.connect(self.Guide_buttonClick)
   
         self.win.show()
     
@@ -424,9 +429,11 @@ class UI:
 
 
 
-    def Capture_buttonClick(self):
-        self.toggle_capture()
+    def Calibrate_buttonClick(self):
+        print("Calibrate")
 
+    def Guide_buttonClick(self):
+        print("Guide")
 
     def updateplot(self, fwhm):
         self.databuffer.append(1)
@@ -467,10 +474,7 @@ class UI:
     def update(self):
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
 
-        max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
-        cy, cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
-        print(cx, cy)
-        self.txt4.setText("X="  + "{:.2f}".format(cx) + "Y="  + "{:.2f}".format(cy))
+        self.txt4.setText("X="  + "{:.2f}".format(self.cx) + "Y="  + "{:.2f}".format(self.cy))
 
         
         pos = self.clip(self.pos)
@@ -519,7 +523,11 @@ class UI:
 
             if (mean_new != mean_old):
                 mean_old = mean_new
+                max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
+                self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
+                print(self.cx, self.cy)
 
+                guider.pos_handler(self.cx, self.cy)
                 self.idx = self.idx + 1
                 self.t1 = time.perf_counter()
 
