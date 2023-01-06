@@ -45,6 +45,7 @@ class guider:
         self.reset()
         self.mount = mount
         self.camera = camera
+        self.guide_inited = 0
 
 
     def start_calibrate(self):
@@ -100,23 +101,27 @@ class guider:
         if (self.cal_state == 20):
             self.pos_x0 = x
             self.pos_y0 = y
+            self.mount.bump(-300, 0)
             print("Move Left")
 
         if (self.cal_state == 15):
             self.pos_x1 = x
             self.pos_y1 = y
+            self.mount.bump(300, 0)
             print("Move Right")
 
 
         if (self.cal_state == 10):
             self.pos_x2 = x
             self.pos_y2 = y
+            self.mount.bump(0, -300)
             print("Move Up")
 
 
         if (self.cal_state == 5):
             self.pos_x3 = x
             self.pos_y3 = y
+            self.mount.bump(0, 300)
             print("Move Down")
 
 
@@ -135,6 +140,19 @@ class guider:
         return cal_state
 
     def handle_guide(self, x, y):
+        if (self.guide_inited == 0):
+            self.center_x = x
+            self.center_y = y
+            self.guide_inited = 1
+        else:
+            dx = x - self.center_x
+            dy = y - self.center_y
+
+            tx = self.error_to_tx(dx, dy)
+            ty = self.error_to_ty(dx, dy)
+
+            self.mount(bump, tx, ty)
+
         print("get guide point", x, y)
 
     def pos_handler(self, x, y):
