@@ -39,6 +39,14 @@ import pickle
 cheat_move_x = 0
 cheat_move_y = 0
 
+
+def fbump(dx, dy):
+    global cheat_move_x
+    global cheat_move_y
+
+    cheat_move_x += dx / 50.0
+    cheat_move_y += dy / 50.0
+
 class guider:
     def __init__(self, mount, camera):
         print("init")
@@ -103,31 +111,35 @@ class guider:
         self.cal_state = 20
         self.guide_state = 0
 
+
+    def guide(self):
+        self.guide_state = 1
+
     def handle_calibrate(self, x, y):
         if (self.cal_state == 20):
             self.pos_x0 = x
             self.pos_y0 = y
-            self.mount.bump(-300, 0)
+            fbump(-300, 0)
             print("Move Left")
 
         if (self.cal_state == 15):
             self.pos_x1 = x
             self.pos_y1 = y
-            self.mount.bump(300, 0)
+            fbump(300, 0)
             print("Move Right")
 
 
         if (self.cal_state == 10):
             self.pos_x2 = x
             self.pos_y2 = y
-            self.mount.bump(0, -300)
+            fbump(0, -300)
             print("Move Up")
 
 
         if (self.cal_state == 5):
             self.pos_x3 = x
             self.pos_y3 = y
-            self.mount.bump(0, 300)
+            fbump(0, 300)
             print("Move Down")
 
 
@@ -135,11 +147,16 @@ class guider:
             self.calc_calibration()
 
         self.cal_state = self.cal_state - 1
-        if (self.calc_state < 0):
+        if (self.cal_state < 0):
             self.cal_state = 0
 
     def calc_calibration(self):
         print("calc cal")
+        self.mount_dx1 = self.pos_x1 - self.pos_x0       
+        self.mount_dy1 = self.pos_y1 - self.pos_y0
+
+        self.mount_dx2 = self.pos_x3 - self.pos_x2      
+        self.mount_dy2 = self.pos_y3 - self.pos_y2
 
 
     def calibrate_state(self):
@@ -153,11 +170,11 @@ class guider:
         else:
             dx = x - self.center_x
             dy = y - self.center_y
-
+            print("ERROR ", dx, dy)
             tx = self.error_to_tx(dx, dy)
             ty = self.error_to_ty(dx, dy)
-
-            self.mount(bump, tx, ty)
+            fbump(tx, ty)
+            #self.mount(bump, tx, ty)
 
         print("get guide point", x, y)
 
@@ -438,6 +455,7 @@ class UI:
         print("Calibrate")
 
     def Guide_buttonClick(self):
+        self.guider.guide()
         print("Guide")
 
     def updateplot(self, fwhm):
