@@ -22,8 +22,12 @@ from ser import SerWriter
 import skyx
 import collections
 import math
-
+from scipy import ndimage
 import mover
+
+import logging as log
+
+log.basicConfig(level=log.INFO)
 
 sky = skyx.sky6RASCOMTele()
 
@@ -47,17 +51,44 @@ def fbump(dx, dy):
     cheat_move_x += dx / 50.0
     cheat_move_y += dy / 50.0
 
+
+def rand_move():
+    fbump(random.uniform(-277, 270), random.uniform(-270, 270))
+
+class LastNValues:
+    def __init__(self, n):
+        self.n = n
+        self.values = []
+
+    def add_value(self, x):
+        if len(self.values) == self.n:
+            # If the array is already full, remove the first element
+            self.values.pop(0)
+        self.values.append(x)
+
+    def same_sign(self):
+        if not self.values or len(self.values) < self.n:
+            # If the array is empty or not full yet, return False
+            return False
+        return (self.values[0] > 0 and self.values[-1] > 0) or (self.values[0] < 0 and self.values[-1] < 0)
+
 class guider:
     def __init__(self, mount, camera):
-        print("init")
+        log.info("init")
         self.reset()
         self.mount = mount
         self.camera = camera
         self.guide_inited = 0
+        self.filter = KalmanFilter(0.1)
+        self.gain_x = 110.0
+        self.gain_y = 110.0
+        N = 4
+        self.last_x = LastNValues(N)
+        self.last_y = LastNValues(N)
 
 
     def start_calibrate(self):
-        print("calibrate")
+        log("calibrate")
         self.cal_state = 20
 
     def stop_calibrate(self):
@@ -84,7 +115,7 @@ class guider:
                 loaded_data = pickle.load(f)
                 self.__dict__.update(loaded_data.__dict__)
         except Exception as e:
-            print("An error occurred while loading the state:", e)
+            log.critical("An error occurred while loading the state:", e)
             self.reset()
 
     def reset(self):
@@ -102,10 +133,10 @@ class guider:
 
 
     def new_pos(self, x, y):
-        print("new pos", x, y)
+        log.info("new pos %d %d", x, y)
 
     def set_pos(self, x, y):
-        print("set pos", x, y)
+        log.info("set pos %d %d", x, y)
 
     def calibrate(self):
         self.cal_state = 20
@@ -120,27 +151,27 @@ class guider:
             self.pos_x0 = x
             self.pos_y0 = y
             fbump(-300, 0)
-            print("Move Left")
+            log.info("Move Left")
 
         if (self.cal_state == 15):
             self.pos_x1 = x
             self.pos_y1 = y
             fbump(300, 0)
-            print("Move Right")
+            log.info("Move Right")
 
 
         if (self.cal_state == 10):
             self.pos_x2 = x
             self.pos_y2 = y
             fbump(0, -300)
-            print("Move Up")
+            log.info("Move Up")
 
 
         if (self.cal_state == 5):
             self.pos_x3 = x
             self.pos_y3 = y
             fbump(0, 300)
-            print("Move Down")
+            log.info("Move Down")
 
 
         if (self.cal_state == 1):
@@ -151,7 +182,7 @@ class guider:
             self.cal_state = 0
 
     def calc_calibration(self):
-        print("calc cal")
+        log.info("calc cal")
         self.mount_dx1 = self.pos_x1 - self.pos_x0       
         self.mount_dy1 = self.pos_y1 - self.pos_y0
 
@@ -162,6 +193,10 @@ class guider:
     def calibrate_state(self):
         return cal_state
 
+    def distance(self, x, y):
+        return np.sqrt(x*x+y*y)
+
+
     def handle_guide(self, x, y):
         if (self.guide_inited == 0):
             self.center_x = x
@@ -170,16 +205,42 @@ class guider:
         else:
             dx = x - self.center_x
             dy = y - self.center_y
-            print("ERROR ", dx, dy)
-            tx = self.error_to_tx(dx, dy)
-            ty = self.error_to_ty(dx, dy)
+
+           
+            self.dis = self.distance(dx,dy)
+
+            if (self.dis > 20.0):
+                return
+            self.filter.update(GPoint(dx,dy))
+            val = self.filter.value()
+
+            log.info("e0", self.filter.value())
+
+            self.last_x.add_value(dx)
+            self.last_y.add_value(dy)
+
+            if (self.last_x.same_sign()):
+                self.gain_x = self.gain_x + 0.1
+            else:
+                self.gain_x = self.gain_x - 0.1
+                
+            if (self.last_y.same_sign()):
+                self.gain_y = self.gain_y + 0.1
+            else:
+                self.gain_y = self.gain_y - 0.1
+                             
+
+            tx = self.error_to_tx(self.gain_x * dx, self.gain_y * dy)
+            ty = self.error_to_ty(self.gain_x *dx, self.gain_y * dy)
+
+            log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
             fbump(tx, ty)
             #self.mount(bump, tx, ty)
 
-        print("get guide point", x, y)
+        log.info("get guide point %f %f", x, y)
 
     def pos_handler(self, x, y):
-        print("handler", x, y)
+        log.info("handler %f %f", x, y)
         if self.cal_state != 0:
             self.handle_calibrate(x, y)
         if self.guide_state != 0:
@@ -203,11 +264,11 @@ class guider:
 class fake_cam:
     def __init__(self, temp, exp, gain, crop):
         
-        print("init cam")
+        log.info("init cam")
         self.frame = np.random.randint(0,4096, (512,512), dtype=np.uint16)
-        self.stars_frame = self.stars(self.frame, 80, gain=2)
+        self.stars_frame = self.stars(self.frame, 4, gain=2)
 
-    def stars(self, image, number, max_counts=10000, gain=1):
+    def stars(self, image, number, max_counts=3000, gain=1):
         global cheat_move_y
         global cheat_move_x
         """
@@ -222,8 +283,8 @@ class fake_cam:
         y_max, x_max = image.shape
         xmean_range = [0.1 * x_max, 0.9 * x_max]
         ymean_range = [0.1 * y_max, 0.9 * y_max]
-        xstddev_range = [2, 2]
-        ystddev_range = [2, 2]
+        xstddev_range = [3, 3]
+        ystddev_range = [3, 3]
         params = dict([('amplitude', flux_range),
                       ('x_mean', xmean_range),
                       ('y_mean', ymean_range),
@@ -238,11 +299,13 @@ class fake_cam:
         
         return star_im         
 
+    
+
     def get_frame(self):        
         self.frame = np.random.randint(0,512, (512,512), dtype=np.uint16)
         
 
-        return self.frame + np.roll(np.roll(self.stars_frame.astype(np.uint16), round(cheat_move_x), axis=0), round(cheat_move_y), axis=1)
+        return self.frame + ndimage.shift(self.stars_frame.astype(np.uint16), (cheat_move_x, cheat_move_y))
         
     def start(self):
         self.running = 1
@@ -280,9 +343,7 @@ class qhy_cam:
        
         self.qc.SetGain(gain)
         
-        print(self.qc.pixelw)
-        
- 
+   
     def get_frame(self):        
         self.frame = self.qc.GetLiveFrame()
         #self.qc.GetStatus()
@@ -313,7 +374,7 @@ class FrameWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         self.quit = 148
-        print("quit")
+        log.info("quit")
         QtWidgets.QMainWindow.closeEvent(self, event)
 
 
@@ -321,7 +382,7 @@ class UI:
     def click(self, event):
         event.accept()      
         self.pos = event.pos()
-        print (int(self.pos.x()),int(self.pos.y()))
+        log.info("click %d %d", int(self.pos.x()),int(self.pos.y()))
 
     def convert_nparray_to_QPixmap(self,img):
         w,h = img.shape
@@ -374,7 +435,7 @@ class UI:
         self.mover.setFixedSize(200,200)
 
         temp_widget.layout().addWidget(self.mover)
-        self.plt = pg.plot(title='Dynamic Plotting with PyQtGraph')
+        self.plt = pg.plot(title='dx')
         self.plt_bufsize = 200
         self.x = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
         self.y = np.zeros(self.plt_bufsize, dtype=np.float64)
@@ -382,11 +443,12 @@ class UI:
 
         temp_widget.layout().addWidget(self.plt)
         self.plt.showGrid(x=True, y=True)
-        self.plt.setLabel('left', 'fwhm', 'pixels')
+        self.plt.setLabel('left', 'pos_x', 'pixels')
         self.plt.setLabel('bottom', 'frame', 'f')
         self.curve = self.plt.plot(self.x, self.y, pen=(255,0,0))
         
         self.statusBar.addPermanentWidget(temp_widget, 1)
+
 
 
         rightlayout = QtWidgets.QWidget(self.win)
@@ -399,6 +461,9 @@ class UI:
         rightlayout.layout().addWidget(self.calibrate_button)
         self.guide_button =  QtWidgets.QPushButton("Guide")
         rightlayout.layout().addWidget(self.guide_button)
+        self.bump_button =  QtWidgets.QPushButton("bump")
+        rightlayout.layout().addWidget(self.bump_button)
+
 
         self.update_button =  QtWidgets.QPushButton("slow_update")
         rightlayout.layout().addWidget(self.update_button)
@@ -432,6 +497,7 @@ class UI:
         self.calibrate_button.clicked.connect(self.Calibrate_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
         self.guide_button.clicked.connect(self.Guide_buttonClick)
+        self.bump_button.clicked.connect(self.Bump_buttonClick)
   
         self.win.show()
     
@@ -447,19 +513,22 @@ class UI:
             self.update_button.setText("slow_update")
             self.update_state = 1
 
+    def Bump_buttonClick(self):
+        #print("bump")
+        rand_move()
 
 
 
     def Calibrate_buttonClick(self):
         self.guider.calibrate()
-        print("Calibrate")
+        log.info("Calibrate")
 
     def Guide_buttonClick(self):
         self.guider.guide()
-        print("Guide")
+        log.info("Guide")
 
-    def updateplot(self, fwhm):
-        self.databuffer.append(1)
+    def updateplot(self, x):
+        self.databuffer.append(x)
         self.y[:] = self.databuffer
         self.curve.setData(self.x, self.y)
         #self.app.processEvents()
@@ -480,7 +549,7 @@ class UI:
 
     def update_status(self):
         self.txt1.setText("FWHM= " + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
-        self.updateplot(1.0)
+        self.updateplot(self.cx)
 
         if (self.cnt % 30 == 0):
             if not (sky is None):
@@ -496,8 +565,8 @@ class UI:
 
     def update(self):
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
-
-        self.txt4.setText("X="  + "{:.2f}".format(self.cx) + "Y="  + "{:.2f}".format(self.cy))
+        self.imv.setLevels(0,3384)
+        self.txt4.setText("X="  + "{:.2f}".format(self.cx) + " Y="  + "{:.2f}".format(self.cy) + " gx=" + "{:.2f}".format(self.guider.gain_x) + " gy=" + "{:.2f}".format(self.guider.gain_y))
 
         
         pos = self.clip(self.pos)
@@ -537,7 +606,7 @@ class UI:
                 cheat_move_x = cheat_move_x + rx
                 cheat_move_y = cheat_move_y + ry
                
-                print("move at " + str(rx) + " " + str(ry))
+                log.info("move at %f %f", rx, ry)
             
             
             app.processEvents()
@@ -547,13 +616,14 @@ class UI:
             if (mean_new != mean_old):
                 mean_old = mean_new
                 max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
+                log.info("max value = %d %d", max_x, max_y)
                 self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
-                #print(self.cx, self.cy)
+                log.info("calc centroid = %f %f", self.cx, self.cy)
 
                 self.guider.pos_handler(self.cx, self.cy)
                 self.idx = self.idx + 1
                 self.t1 = time.perf_counter()
-
+                #rand_move()
                 self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
                 
                 need_update = False

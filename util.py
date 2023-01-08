@@ -321,10 +321,11 @@ def compute_centroid(array, x, y):
 
   array = array[y - 16: y + 16, x - 16:x + 16]
 
-  array = array - np.min(array)
+  array = array - (np.min(array) + 3.0 * np.std(array))
 
   rows, cols = np.where(array > 0.0)
   values = array[rows, cols]
+  #print(values.shape)
 
   # Compute the centroid using a weighted average
   centroid_row = np.sum(rows * values) / np.sum(values)
@@ -332,3 +333,100 @@ def compute_centroid(array, x, y):
   centroid_value = np.mean(values)
 
   return centroid_col + x - 16, centroid_row + y - 16, centroid_value
+
+
+from scipy.optimize import minimize
+
+
+def find_optimal_scaling(array1, array2):
+    def minimize_std(K):
+        # Calculate the difference array
+        diff = array1 - array2 * K
+
+        # Calculate the standard deviation of the difference array
+        std = np.std(diff)
+
+        # Return the standard deviation as the optimization target
+        return std
+
+    # Initialize the optimization parameters
+    x0 = [1.0]  # Initial value for K
+    bounds = [(0.0, None)]  # Bounds for K (must be non-negative)
+
+    # Perform the optimization
+    result = minimize(minimize_std, x0, bounds=bounds)
+
+    # Extract the optimized value for K
+    K_opt = result.x[0]
+
+    return K_opt
+
+
+
+class GPoint:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+class KalmanFilter:
+    def __init__(self, dt):
+        self.dt = dt
+        
+        # Define the state transition matrix
+        self.A = np.array([[1, dt, 0, 0], [0, 1, 0, 0], [0, 0, 1, dt], [0, 0, 0, 1]])
+
+        # Define the measurement matrix
+        self.H = np.array([[1, 0, 0, 0], [0, 0, 1, 0]])
+
+        # Initialize the state vector and the covariance matrix
+        self.x = np.array([[0], [0], [0], [0]])
+        self.P = np.array([[1000, 0, 0, 0], [0, 1000, 0, 0], [0, 0, 1000, 0], [0, 0, 0, 1000]])
+
+        # Define the process and measurement noise covariance matrices
+        self.Q = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        self.R = np.array([[1, 0], [0, 1]])
+    
+    def predict(self):
+        # Predict the next state of the system
+        self.x = np.dot(self.A, self.x)
+        self.P = np.dot(self.A, np.dot(self.P, self.A.T)) + self.Q
+    
+    def update(self, point):
+        # Update the predicted state with the measurement
+        y = np.array([[point.x], [point.y]]) - np.dot(self.H, self.x)
+        S = np.dot(self.H, np.dot(self.P, self.H.T)) + self.R
+        K = np.dot(self.P, np.dot(self.H.T, np.linalg.inv(S)))
+        self.x = self.x + np.dot(K, y)
+        self.P = self.P - np.dot(K, np.dot(self.H, self.P))
+
+    def value(self):
+        return self.x
+
+
+
+import zmq
+
+class IPC:
+    def __init__(self):
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REP)
+        self.socket.bind("tcp://*:5555")
+
+
+    def get(self):
+        count = self.socket.poll(timeout=1)
+        if (count != 0):
+            obj = self.socket.recv_pyobj()
+            return obj
+        else:
+            return None
+
+    def send(self, msg):
+        self.socket.send_pyobj(msg)
+
+    def close(self):
+        # Close the socket
+        self.socket.close()
+
+        # Terminate the context
+        self.context.term()
