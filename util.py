@@ -445,3 +445,22 @@ class IPC:
         self.send(ob)
         res = self.get()
         return res
+
+
+
+class LastNValues:
+    def __init__(self, n):
+        self.n = n
+        self.values = []
+
+    def add_value(self, x):
+        if len(self.values) == self.n:
+            # If the array is already full, remove the first element
+            self.values.pop(0)
+        self.values.append(x)
+
+    def same_sign(self):
+        if not self.values or len(self.values) < self.n:
+            # If the array is empty or not full yet, return False
+            return False
+        return (self.values[0] > 0 and self.values[-1] > 0) or (self.values[0] < 0 and self.values[-1] < 0)

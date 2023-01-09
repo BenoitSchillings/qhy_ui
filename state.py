@@ -12,7 +12,7 @@ while(True):
 	#print("data")
 
 	if (data != None):
-		print(data)
+		#print(data)
 
 		if (data[1] != -1):
 			variables[data[0]] = data[1]

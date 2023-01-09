@@ -11,6 +11,8 @@ from PyQt5 import QtWidgets
 
 from PyQt5.QtGui  import *
 from PyQt5.QtCore import *
+from PyQt5.QtWidgets import QMenu, QMenuBar, QAction
+
 import os
 import qhyccd
 from astropy.io import fits
@@ -33,9 +35,9 @@ sky = skyx.sky6RASCOMTele()
 
 ipc = IPC()
 
-ipc.set_val("test", [1,2])
+ipc.set_val("bump", [1,2])
 
-print(ipc.get_val("test"))
+
 
 #--------------------------------------------------------
 app = QtWidgets.QApplication([])
@@ -60,22 +62,6 @@ def fbump(dx, dy):
 def rand_move():
     fbump(random.uniform(-277, 270), random.uniform(-270, 270))
 
-class LastNValues:
-    def __init__(self, n):
-        self.n = n
-        self.values = []
-
-    def add_value(self, x):
-        if len(self.values) == self.n:
-            # If the array is already full, remove the first element
-            self.values.pop(0)
-        self.values.append(x)
-
-    def same_sign(self):
-        if not self.values or len(self.values) < self.n:
-            # If the array is empty or not full yet, return False
-            return False
-        return (self.values[0] > 0 and self.values[-1] > 0) or (self.values[0] < 0 and self.values[-1] < 0)
 
 class guider:
     def __init__(self, mount, camera):
@@ -401,7 +387,20 @@ class FrameWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         QtWidgets.QMainWindow.__init__(self)
         self.quit = 0
+        self._createMenuBar()
 
+    def on_auto_level(self):
+        log.info("AUTO LEVEL")
+
+    def _createMenuBar(self):
+        menu_bar = QMenuBar(self)
+        self.setMenuBar(menu_bar)
+        action_menu = menu_bar.addMenu('Action')
+        new_action = QAction('Auto-Level', self)
+        new_action.setShortcut('Ctrl+A')
+        new_action.triggered.connect(self.on_auto_level)
+        action_menu.addAction(new_action)
+        menu_bar.addMenu(action_menu)
 
     def closeEvent(self, event):
         self.quit = 148
@@ -596,7 +595,7 @@ class UI:
 
     def update(self):
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
-        self.imv.setLevels(0,3384)
+        #self.imv.setLevels(0,3384)
         self.txt4.setText("X="  + "{:.2f}".format(self.cx) + " Y="  + "{:.2f}".format(self.cy) + " gx=" + "{:.2f}".format(self.guider.gain_x) + " gy=" + "{:.2f}".format(self.guider.gain_y))
 
         
