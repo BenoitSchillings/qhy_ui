@@ -31,6 +31,11 @@ log.basicConfig(level=log.INFO)
 
 sky = skyx.sky6RASCOMTele()
 
+ipc = IPC()
+
+ipc.set_val("test", 1)
+
+print(ipc.get_val("test"))
 
 #--------------------------------------------------------
 app = QtWidgets.QApplication([])
@@ -85,6 +90,7 @@ class guider:
         N = 4
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
+        self.load_state("guide.data")
 
 
     def start_calibrate(self):
@@ -101,8 +107,18 @@ class guider:
         self.is_guiding = 0
 
     def save_state(self, filename):
+        settings = {}
+
+        settings['mount_dx1'] = self.mount_dx1
+        settings['mount_dx2'] = self.mount_dx2
+        settings['mount_dy1'] = self.mount_dy1
+        settings['mount_dy2'] = self.mount_dy2
+
+        settings['gain_x'] = self.gain_x
+        settings['gain_y'] = self.gain_y
+
         with open(filename, "wb") as f:
-            pickle.dump(self, f)
+            pickle.dump(settings, f)
 
     def load_state(self, filename):
         """Load the state of the object from a file.
@@ -112,8 +128,15 @@ class guider:
         """
         try:
             with open(filename, "rb") as f:
-                loaded_data = pickle.load(f)
-                self.__dict__.update(loaded_data.__dict__)
+                settings = pickle.load(f)
+                self.mount_dx1 = settings['mount_dx1']
+                self.mount_dx2 = settings['mount_dx2']
+                self.mount_dy1 = settings['mount_dy1']
+                self.mount_dy2 = settings['mount_dy2']
+
+                self.gain_x = settings['gain_x']
+                self.gain_y = settings['gain_y']
+               
         except Exception as e:
             log.critical("An error occurred while loading the state:", e)
             self.reset()
@@ -188,6 +211,8 @@ class guider:
 
         self.mount_dx2 = self.pos_x3 - self.pos_x2      
         self.mount_dy2 = self.pos_y3 - self.pos_y2
+
+        self.save_state("guide.data")
 
 
     def calibrate_state(self):

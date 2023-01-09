@@ -26,6 +26,12 @@ import math
 import mover
 
 sky = skyx.sky6RASCOMTele()
+ipc = IPC()
+
+ipc.set_val("test", 1)
+
+print(ipc.get_val("test"))
+
 
 #--------------------------------------------------------
 app = QtWidgets.QApplication([])

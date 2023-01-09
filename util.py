@@ -407,14 +407,18 @@ class KalmanFilter:
 import zmq
 
 class IPC:
-    def __init__(self):
+    def __init__(self, type = zmq.REQ):
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REP)
-        self.socket.bind("tcp://*:5555")
+        self.socket = self.context.socket(type)
+
+        if (type == zmq.REQ):
+            self.socket.connect("tcp://localhost:5555")
+        else:
+            self.socket.bind("tcp://*:5555")
 
 
     def get(self):
-        count = self.socket.poll(timeout=1)
+        count = self.socket.poll(timeout=30)
         if (count != 0):
             obj = self.socket.recv_pyobj()
             return obj
@@ -430,3 +434,14 @@ class IPC:
 
         # Terminate the context
         self.context.term()
+
+    def set_val(self, name, val):
+        ob = [name, val]
+        self.send(ob)
+        res = self.get()
+
+    def get_val(self, name):
+        ob = [name, -1]
+        self.send(ob)
+        res = self.get()
+        return res
