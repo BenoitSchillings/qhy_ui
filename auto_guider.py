@@ -33,7 +33,7 @@ sky = skyx.sky6RASCOMTele()
 
 ipc = IPC()
 
-ipc.set_val("test", 1)
+ipc.set_val("test", [1,2])
 
 print(ipc.get_val("test"))
 
@@ -221,6 +221,12 @@ class guider:
     def distance(self, x, y):
         return np.sqrt(x*x+y*y)
 
+
+    def offset(self, dx, dy):
+        self.center_x = self.center_x + dx
+        self.center_y = self.center_y + dy
+
+        log.info("new guide position %f %f", self.center_x, self_center_y)
 
     def handle_guide(self, x, y):
         if (self.guide_inited == 0):
@@ -617,6 +623,14 @@ class UI:
         self.zoom_view.setPixmap(pixmap)
 
 
+    def ipc_check(self):
+        bump = ipc.get_val("bump")
+
+        if (bump[0] != 0.0 and bump[1] != 0):
+            return
+
+        self.guider.offset(bump[0], bump[1])
+        ipc.set_val("bump", [0,0])
 
     def mainloop(self, args, camera):
         global cheat_move_y
@@ -640,10 +654,14 @@ class UI:
 
             if (mean_new != mean_old):
                 mean_old = mean_new
+
                 max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
                 log.info("max value = %d %d", max_x, max_y)
                 self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
                 log.info("calc centroid = %f %f", self.cx, self.cy)
+
+                self.ipc_check()
+
 
                 self.guider.pos_handler(self.cx, self.cy)
                 self.idx = self.idx + 1

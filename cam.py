@@ -28,9 +28,9 @@ import mover
 sky = skyx.sky6RASCOMTele()
 ipc = IPC()
 
-ipc.set_val("test", 1)
-
-print(ipc.get_val("test"))
+#for k in range(10000):
+#    ipc.set_val("test", k)
+#    print(ipc.get_val("test"))
 
 
 #--------------------------------------------------------
