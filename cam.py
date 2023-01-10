@@ -8,6 +8,7 @@ import astropy
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore, QT_LIB
 from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QMenu, QMenuBar, QAction
 
 from PyQt5.QtGui  import *
 from PyQt5.QtCore import *
@@ -28,10 +29,6 @@ import mover
 sky = skyx.sky6RASCOMTele()
 ipc = IPC()
 
-#for k in range(10000):
-#    ipc.set_val("test", k)
-#    print(ipc.get_val("test"))
-
 
 #--------------------------------------------------------
 app = QtWidgets.QApplication([])
@@ -49,8 +46,8 @@ class qhy_cam:
         self.qc.SetBit(16)
         self.qc.SetUSB(11)
 
-        #self.qc.SetOffset(144) for guider
-        self.qc.SetOffset(100) #for imager
+        self.qc.SetOffset(144) #for guider
+        #self.qc.SetOffset(100) #for imager
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
         self.sizey = int(self.qc.image_size_y * crop)
@@ -69,8 +66,11 @@ class qhy_cam:
         
  
     def get_frame(self):        
+        
         self.frame = self.qc.GetLiveFrame()
+       
         #self.qc.GetStatus()
+        print(self.frame)
         return self.frame
         
     def start(self):
@@ -91,10 +91,27 @@ class qhy_cam:
 
 class FrameWindow(QtWidgets.QMainWindow):
 
+
     def __init__(self, parent=None):
         QtWidgets.QMainWindow.__init__(self)
         self.quit = 0
+        self._createMenuBar()
 
+    def on_auto_level(self):
+        global ui
+
+        ui.auto_level = True
+        log.info("AUTO LEVEL")
+
+    def _createMenuBar(self):
+        menu_bar = QMenuBar(self)
+        self.setMenuBar(menu_bar)
+        action_menu = menu_bar.addMenu('Action')
+        new_action = QAction('Auto-Level', self)
+        new_action.setShortcut('Ctrl+A')
+        new_action.triggered.connect(self.on_auto_level)
+        action_menu.addAction(new_action)
+        menu_bar.addMenu(action_menu)
 
     def closeEvent(self, event):
         self.quit = 148
@@ -128,7 +145,7 @@ class UI:
         self.capture_state = 0
         self.update_state = 1
         self.auto = auto
-        
+        self.auto_level = False
       	
         self.rms = 0
         self.pos = QPoint(256,256)
@@ -308,6 +325,12 @@ class UI:
             return ((max - min) > (std*10))
 
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
+ 
+        if (self.auto_level):
+            vmin = np.percentile(self.array, 3)
+            vmax = np.percentile(self.array,93)
+            self.imv.setLevels(vmin, vmax)
+            self.auto_level = False
 
         pos = self.clip(self.pos)
        

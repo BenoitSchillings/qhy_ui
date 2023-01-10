@@ -390,6 +390,9 @@ class FrameWindow(QtWidgets.QMainWindow):
         self._createMenuBar()
 
     def on_auto_level(self):
+        global ui
+
+        ui.auto_level = True
         log.info("AUTO LEVEL")
 
     def _createMenuBar(self):
@@ -434,6 +437,7 @@ class UI:
         self.capture_state = 0
         self.update_state = 1
         self.guider = guider
+        self.auto_level = False
         
       	
         self.rms = 0
@@ -595,7 +599,14 @@ class UI:
 
     def update(self):
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
-        #self.imv.setLevels(0,3384)
+        
+        if (self.auto_level):
+            vmin = np.percentile(self.array, 3)
+            vmax = np.percentile(self.array,93)
+            self.imv.setLevels(vmin, vmax)
+            self.auto_level = False
+
+
         self.txt4.setText("X="  + "{:.2f}".format(self.cx) + " Y="  + "{:.2f}".format(self.cy) + " gx=" + "{:.2f}".format(self.guider.gain_x) + " gy=" + "{:.2f}".format(self.guider.gain_y))
 
         

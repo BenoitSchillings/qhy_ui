@@ -51,7 +51,7 @@ class qhyccd():
         self.sdk.ScanQHYCCD()
         type_char_array_32 = c_char*32
         self.id = type_char_array_32()
-        self.sdk.SetQHYCCDLogLevel(1)
+        #self.sdk.SetQHYCCDLogLevel(1)
         self.sdk.GetQHYCCDId(c_int(0), self.id)    # open the first camera
         print("Open camera:", self.id.value)
         self.cam = self.sdk.OpenQHYCCD(self.id)
@@ -88,7 +88,7 @@ class qhyccd():
         print("err", err)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
-        self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
+        #self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
         self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         #self.SetDDR(0)
         #print("ddr", self.GetDDR())
