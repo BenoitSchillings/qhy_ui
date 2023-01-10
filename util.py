@@ -345,7 +345,7 @@ def find_optimal_scaling(array1, array2):
 
         # Calculate the standard deviation of the difference array
         std = np.std(diff)
-        print(std)
+        #print(std)
         # Return the standard deviation as the optimization target
         return std
 
