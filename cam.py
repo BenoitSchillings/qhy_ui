@@ -42,6 +42,7 @@ class qhy_cam:
     def __init__(self, temp, exp, gain, crop):
         self.qc = qhyccd.qhyccd()
         self.dt = exp
+        self.gain = gain
         self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(11)
@@ -70,7 +71,7 @@ class qhy_cam:
         self.frame = self.qc.GetLiveFrame()
        
         #self.qc.GetStatus()
-        print(self.frame)
+        #print(self.frame)
         return self.frame
         
     def start(self):
@@ -257,6 +258,10 @@ class UI:
             fn = self.filename.text() + str(time.time_ns()) + ".fits"
             print(fn)
             hdr = fits.header.Header()
+            hdr['EXPTIME'] = camera.dt
+            hdr['GAIN'] = camera.gain
+            hdr['DATE-OBS'] = datetime.datetime.utcnow().isoformat()
+
             fits.writeto(fn, buffer, hdr, overwrite=True)
 
 
@@ -377,11 +382,11 @@ class UI:
             if (mean_new != mean_old):
                 mean_old = mean_new
 
-
+                self.cnt = self.cnt + 1
                 if (self.capture_state == 1):
                     self.add_to_save(self.array)
                     
-                    if (self.cnt > self.frame_per_file):
+                    if (self.cnt >= self.frame_per_file):
                         self.toggle_capture()
                         if (self.auto != 0):
                         	return
@@ -402,9 +407,9 @@ class UI:
                 if (need_update):
                     self.update()
 
-                self.cnt = self.cnt + 1
+                
 
-        if (self.capture_state == 1):
+        if (self.capture_state == 1 and self.fits == 0):
             self.capture_file.close()
 
 
