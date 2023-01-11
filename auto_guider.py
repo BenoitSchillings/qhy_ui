@@ -342,10 +342,14 @@ class qhy_cam:
     def __init__(self, temp, exp, gain, crop):
         self.qc = qhyccd.qhyccd()
         self.dt = exp
+        self.gain = gain
         self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(11)
-        self.qc.SetOffset(144)
+
+        self.qc.SetOffset(144) #for guider
+        #self.qc.SetOffset(100) #for imager
+
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
         self.sizey = int(self.qc.image_size_y * crop)
@@ -363,7 +367,6 @@ class qhy_cam:
    
     def get_frame(self):        
         self.frame = self.qc.GetLiveFrame()
-        #self.qc.GetStatus()
         return self.frame
         
     def start(self):
@@ -406,7 +409,7 @@ class FrameWindow(QtWidgets.QMainWindow):
         menu_bar.addMenu(action_menu)
 
     def closeEvent(self, event):
-        self.quit = 148
+        self.quit = 1
         log.info("quit")
         QtWidgets.QMainWindow.closeEvent(self, event)
 

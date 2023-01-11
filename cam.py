@@ -49,6 +49,7 @@ class qhy_cam:
 
         self.qc.SetOffset(144) #for guider
         #self.qc.SetOffset(100) #for imager
+
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
         self.sizey = int(self.qc.image_size_y * crop)
@@ -63,15 +64,9 @@ class qhy_cam:
        
         self.qc.SetGain(gain)
         
-        print(self.qc.pixelw)
-        
  
-    def get_frame(self):        
-        
+    def get_frame(self):             
         self.frame = self.qc.GetLiveFrame()
-       
-        #self.qc.GetStatus()
-        #print(self.frame)
         return self.frame
         
     def start(self):
@@ -91,7 +86,6 @@ class qhy_cam:
 
 
 class FrameWindow(QtWidgets.QMainWindow):
-
 
     def __init__(self, parent=None):
         QtWidgets.QMainWindow.__init__(self)
@@ -115,7 +109,7 @@ class FrameWindow(QtWidgets.QMainWindow):
         menu_bar.addMenu(action_menu)
 
     def closeEvent(self, event):
-        self.quit = 148
+        self.quit = 1
         print("quit")
         QtWidgets.QMainWindow.closeEvent(self, event)
 
@@ -260,7 +254,7 @@ class UI:
             hdr = fits.header.Header()
             hdr['EXPTIME'] = camera.dt
             hdr['GAIN'] = camera.gain
-            hdr['DATE-OBS'] = datetime.datetime.utcnow().isoformat()
+            hdr['DATE-OBS'] = datetime.utcnow().isoformat()
 
             fits.writeto(fn, buffer, hdr, overwrite=True)
 
