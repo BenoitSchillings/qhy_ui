@@ -201,6 +201,28 @@ class UI:
             self.update_button.setText("slow_update")
             self.update_state = 1
 
+
+
+    def set_fits_header(self):
+        hdr = fits.header.Header()
+        hdr['EXPTIME'] = camera.dt
+        hdr['GAIN'] = camera.gain
+        hdr['DATE-OBS'] = datetime.datetime.utcnow().isoformat()
+        hdr['CDELT1'] = 1.0/(3600/0.3)
+        hdr['CDELT2'] = 1.0/(3600/0.3)
+        hdr['INSTRUME'] = camera.name()
+        hdr['CRVAL1'] = 0.0  # Right Ascension
+        hdr['CRVAL2'] = 0.0 # Declination
+        if not (sky is None):
+            p0 = sky.GetRaDec()
+            ra =  p0[0][0:8]
+            dec = p0[1][0:8]
+            print(float(ra), float(dec))
+            hdr['CRVAL1'] = float(ra) * 15.0 # Right Ascension
+            hdr['CRVAL2'] = float(dec) # Declination
+
+        return hdr
+
     def add_to_save(self, buffer):
         #print("add")
         if (self.fits == 0):
@@ -208,10 +230,8 @@ class UI:
         else:
             fn = self.filename.text() + str(time.time_ns()) + ".fits"
             print(fn)
-            hdr = fits.header.Header()
-            hdr['EXPTIME'] = camera.dt
-            hdr['GAIN'] = camera.gain
-            hdr['DATE-OBS'] = datetime.utcnow().isoformat()
+            
+            hdr = self.set_fits_header()
 
             fits.writeto(fn, buffer, hdr, overwrite=True)
 

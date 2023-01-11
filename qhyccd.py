@@ -44,6 +44,10 @@ class qhyccd():
         self.sdk.GetQHYCCDReadModeName(self.cam, mode_number, mode)
         return mode.value
 
+    def GetName(self):
+        return str(self.name)
+
+
     def connect(self, mode):
         ret = -1
         
@@ -54,6 +58,7 @@ class qhyccd():
         #self.sdk.SetQHYCCDLogLevel(1)
         self.sdk.GetQHYCCDId(c_int(0), self.id)    # open the first camera
         print("Open camera:", self.id.value)
+        self.name = self.id.value
         self.cam = self.sdk.OpenQHYCCD(self.id)
         self.StopLive()
         print(self.GetModeName(1))

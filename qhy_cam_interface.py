@@ -45,3 +45,7 @@ class qhy_cam:
     
     def size_y(self):
         return self.sizey
+
+    def name(self):
+        return self.qc.GetName()
+        
