@@ -199,20 +199,32 @@ class UI:
         self.mover.setFixedSize(200,200)
 
         temp_widget.layout().addWidget(self.mover)
-        self.plt = pg.plot(title='dx')
-        self.plt_bufsize = 200
-        self.x = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
-        self.y = np.zeros(self.plt_bufsize, dtype=np.float64)
-        self.databuffer = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
 
+
+        self.plt = pg.plot(title='dx')
+        self.plt_bufsize = 100
+        self.x1 = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
+        self.y1 = np.zeros(self.plt_bufsize, dtype=np.float64)
+        self.databufferx = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
         temp_widget.layout().addWidget(self.plt)
         self.plt.showGrid(x=True, y=True)
         self.plt.setLabel('left', 'pos_x', 'pixels')
         self.plt.setLabel('bottom', 'frame', 'f')
-        self.curve = self.plt.plot(self.x, self.y, pen=(255,0,0))
-        
+        self.curvex = self.plt.plot(self.x1, self.y1, pen=(255,0,0))
         self.statusBar.addPermanentWidget(temp_widget, 1)
 
+
+        self.plt = pg.plot(title='dy')
+        self.plt_bufsize = 100
+        self.x2 = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
+        self.y2 = np.zeros(self.plt_bufsize, dtype=np.float64)
+        self.databuffery = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
+        temp_widget.layout().addWidget(self.plt)
+        self.plt.showGrid(x=True, y=True)
+        self.plt.setLabel('left', 'pos_y', 'pixels')
+        self.plt.setLabel('bottom', 'frame', 'f')
+        self.curvey = self.plt.plot(self.x2, self.y2, pen=(255,0,0))
+        self.statusBar.addPermanentWidget(temp_widget, 1)
 
 
         rightlayout = QtWidgets.QWidget(self.win)
@@ -291,11 +303,16 @@ class UI:
         self.guider.guide()
         log.info("Guide")
 
-    def updateplot(self, x):
-        self.databuffer.append(x)
-        self.y[:] = self.databuffer
-        self.curve.setData(self.x, self.y)
-        #self.app.processEvents()
+    def updateplot(self, x, y):
+        self.databufferx.append(x)
+        self.y1[:] = self.databufferx
+        self.curvex.setData(self.x1, self.y1)
+
+        self.databuffery.append(y)
+        self.y2[:] = self.databuffery
+        self.curvey.setData(self.x2, self.y2)
+        
+       
 
 
     def clip(self, pos):
@@ -313,7 +330,7 @@ class UI:
 
     def update_status(self):
         self.txt1.setText("FWHM= " + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
-        self.updateplot(self.cx)
+        self.updateplot(self.cx, self.cy)
 
         if (self.cnt % 30 == 0):
             if not (sky is None):
