@@ -38,244 +38,17 @@ ipc = IPC()
 ipc.set_val("bump", [1,2])
 
 
-
 #--------------------------------------------------------
 app = QtWidgets.QApplication([])
 
 #--------------------------------------------------------
 import argparse
 #--------------------------------------------------------
-import pickle
-
-cheat_move_x = 0
-cheat_move_y = 0
-
-
-def fbump(dx, dy):
-    global cheat_move_x
-    global cheat_move_y
-
-    cheat_move_x += dx / 50.0
-    cheat_move_y += dy / 50.0
+from guider import *
 
 
 def rand_move():
-    fbump(random.uniform(-277, 270), random.uniform(-270, 270))
-
-
-class guider:
-    def __init__(self, mount, camera):
-        log.info("init")
-        self.reset()
-        self.mount = mount
-        self.camera = camera
-        self.guide_inited = 0
-        self.filter = KalmanFilter(0.1)
-        self.gain_x = 110.0
-        self.gain_y = 110.0
-        N = 4
-        self.last_x = LastNValues(N)
-        self.last_y = LastNValues(N)
-        self.load_state("guide.data")
-
-
-    def start_calibrate(self):
-        log("calibrate")
-        self.cal_state = 20
-
-    def stop_calibrate(self):
-        self.cal_state = 0
-
-    def start_guide(self):
-        self.is_guiding = 1
-
-    def stop_guide(self):
-        self.is_guiding = 0
-
-    def save_state(self, filename):
-        settings = {}
-
-        settings['mount_dx1'] = self.mount_dx1
-        settings['mount_dx2'] = self.mount_dx2
-        settings['mount_dy1'] = self.mount_dy1
-        settings['mount_dy2'] = self.mount_dy2
-
-        settings['gain_x'] = self.gain_x
-        settings['gain_y'] = self.gain_y
-
-        with open(filename, "wb") as f:
-            pickle.dump(settings, f)
-
-    def load_state(self, filename):
-        """Load the state of the object from a file.
-
-        Arguments:
-        filename -- the name of the file to load the state from
-        """
-        try:
-            with open(filename, "rb") as f:
-                settings = pickle.load(f)
-                self.mount_dx1 = settings['mount_dx1']
-                self.mount_dx2 = settings['mount_dx2']
-                self.mount_dy1 = settings['mount_dy1']
-                self.mount_dy2 = settings['mount_dy2']
-
-                self.gain_x = settings['gain_x']
-                self.gain_y = settings['gain_y']
-               
-        except Exception as e:
-            log.critical("An error occurred while loading the state:", e)
-            self.reset()
-
-    def reset(self):
-        """Reset the object's state to its default values."""
-        self.cal_state = 0
-        self.is_guiding = 0
-        
-        self.mount_dx1 = 0
-        self.mount_dy1 = 0
-        self.mount_dx2 = 0
-        self.mount_dy2 = 0
-        self.guide_state = 0
-        self.cal_state = 0
-
-
-
-    def new_pos(self, x, y):
-        log.info("new pos %d %d", x, y)
-
-    def set_pos(self, x, y):
-        log.info("set pos %d %d", x, y)
-
-    def calibrate(self):
-        self.cal_state = 20
-        self.guide_state = 0
-
-
-    def guide(self):
-        self.guide_state = 1
-
-    def handle_calibrate(self, x, y):
-        if (self.cal_state == 20):
-            self.pos_x0 = x
-            self.pos_y0 = y
-            fbump(-300, 0)
-            log.info("Move Left")
-
-        if (self.cal_state == 15):
-            self.pos_x1 = x
-            self.pos_y1 = y
-            fbump(300, 0)
-            log.info("Move Right")
-
-
-        if (self.cal_state == 10):
-            self.pos_x2 = x
-            self.pos_y2 = y
-            fbump(0, -300)
-            log.info("Move Up")
-
-
-        if (self.cal_state == 5):
-            self.pos_x3 = x
-            self.pos_y3 = y
-            fbump(0, 300)
-            log.info("Move Down")
-
-
-        if (self.cal_state == 1):
-            self.calc_calibration()
-
-        self.cal_state = self.cal_state - 1
-        if (self.cal_state < 0):
-            self.cal_state = 0
-
-    def calc_calibration(self):
-        log.info("calc cal")
-        self.mount_dx1 = self.pos_x1 - self.pos_x0       
-        self.mount_dy1 = self.pos_y1 - self.pos_y0
-
-        self.mount_dx2 = self.pos_x3 - self.pos_x2      
-        self.mount_dy2 = self.pos_y3 - self.pos_y2
-
-        self.save_state("guide.data")
-
-
-    def calibrate_state(self):
-        return cal_state
-
-    def distance(self, x, y):
-        return np.sqrt(x*x+y*y)
-
-
-    def offset(self, dx, dy):
-        self.center_x = self.center_x + dx
-        self.center_y = self.center_y + dy
-
-        log.info("new guide position %f %f", self.center_x, self_center_y)
-
-    def handle_guide(self, x, y):
-        if (self.guide_inited == 0):
-            self.center_x = x
-            self.center_y = y
-            self.guide_inited = 1
-        else:
-            dx = x - self.center_x
-            dy = y - self.center_y
-
-           
-            self.dis = self.distance(dx,dy)
-
-            if (self.dis > 20.0):
-                return
-            self.filter.update(GPoint(dx,dy))
-            val = self.filter.value()
-
-            log.info("e0", self.filter.value())
-
-            self.last_x.add_value(dx)
-            self.last_y.add_value(dy)
-
-            if (self.last_x.same_sign()):
-                self.gain_x = self.gain_x + 0.1
-            else:
-                self.gain_x = self.gain_x - 0.1
-                
-            if (self.last_y.same_sign()):
-                self.gain_y = self.gain_y + 0.1
-            else:
-                self.gain_y = self.gain_y - 0.1
-                             
-
-            tx = self.error_to_tx(self.gain_x * dx, self.gain_y * dy)
-            ty = self.error_to_ty(self.gain_x *dx, self.gain_y * dy)
-
-            log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
-            fbump(tx, ty)
-            #self.mount(bump, tx, ty)
-
-        log.info("get guide point %f %f", x, y)
-
-    def pos_handler(self, x, y):
-        log.info("handler %f %f", x, y)
-        if self.cal_state != 0:
-            self.handle_calibrate(x, y)
-        if self.guide_state != 0:
-            self.handle_guide(x, y)
-
-            
-    def error_to_tx(self, mx, my):
-        num = (self.mount_dy2 * mx) - (self.mount_dx2 * my)
-        den = (self.mount_dx1 * self.mount_dy2) - (self.mount_dx2 * self.mount_dy1)
-
-        return num / den
-
-    def error_to_ty(self, mx, my):
-        num = (self.mount_dy1 * mx) - (self.mount_dx1 * my)
-        den = (self.mount_dx2 * self.mount_dy1) - (self.mount_dx1 * self.mount_dy2)
-
-        return num / den
-
+    guider.fbump(random.uniform(-277, 270), random.uniform(-270, 270))
 
 
 class fake_cam:
@@ -286,8 +59,6 @@ class fake_cam:
         self.stars_frame = self.stars(self.frame, 4, gain=2)
 
     def stars(self, image, number, max_counts=3000, gain=1):
-        global cheat_move_y
-        global cheat_move_x
         """
         Add some stars to the image.
         """
@@ -322,7 +93,7 @@ class fake_cam:
         self.frame = np.random.randint(0,512, (512,512), dtype=np.uint16)
         
 
-        return self.frame + ndimage.shift(self.stars_frame.astype(np.uint16), (cheat_move_x, cheat_move_y))
+        return self.frame + ndimage.shift(self.stars_frame.astype(np.uint16), (guider.cheat_move_x, guider.cheat_move_y))
         
     def start(self):
         self.running = 1
@@ -611,8 +382,8 @@ class UI:
             time.sleep(0.002)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                cheat_move_x = cheat_move_x + rx
-                cheat_move_y = cheat_move_y + ry
+                guider.cheat_move_x = guider.cheat_move_x + rx
+                guider.cheat_move_y = guider.cheat_move_y + ry
                
                 log.info("move at %f %f", rx, ry)
             
