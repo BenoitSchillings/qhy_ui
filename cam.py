@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import QMenu, QMenuBar, QAction
 from PyQt5.QtGui  import *
 from PyQt5.QtCore import *
 import os
-import qhyccd
+
 from astropy.io import fits
 
 from util import *
@@ -38,51 +38,8 @@ import argparse
 #--------------------------------------------------------
 
 
-class qhy_cam:
-    def __init__(self, temp, exp, gain, crop):
-        self.qc = qhyccd.qhyccd()
-        self.dt = exp
-        self.gain = gain
-        self.qc.GetSize()
-        self.qc.SetBit(16)
-        self.qc.SetUSB(11)
+from qhy_cam_interface import *
 
-        self.qc.SetOffset(144) #for guider
-        #self.qc.SetOffset(100) #for imager
-
-        self.qc.SetTemperature(temp)
-        self.sizex = int(self.qc.image_size_x * crop)
-        self.sizey = int(self.qc.image_size_y * crop)
-
-        ddx = self.qc.image_size_x - self.sizex
-        ddy = self.qc.image_size_y  -self.sizey
-        ddx = ddx // 2
-        ddy = ddy // 2
-
-        self.qc.SetROI(ddx,ddy,ddx + self.sizex,ddy + self.sizey)
-        self.qc.SetExposure(self.dt*1000)
-       
-        self.qc.SetGain(gain)
-        
- 
-    def get_frame(self):             
-        self.frame = self.qc.GetLiveFrame()
-        return self.frame
-        
-    def start(self):
-        self.running = 1
-
-        self.qc.BeginLive()
-        
-    def close(self):
-        self.running = 0
-        self.qc.StopLive()
-
-    def size_x(self):
-        return self.sizex
-    
-    def size_y(self):
-        return self.sizey
 
 
 class FrameWindow(QtWidgets.QMainWindow):
