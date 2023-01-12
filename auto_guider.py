@@ -445,6 +445,7 @@ if __name__ == "__main__":
     parser.add_argument("-gain", "--gain", type=int, default = 100, help="camera gain (default 100)")
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
+    parser.add_argument("-auto", "--auto", type=int, default = 0, "help="start guiding automatically")
     args = parser.parse_args()
 
     try:
