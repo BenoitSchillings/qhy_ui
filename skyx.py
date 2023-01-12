@@ -174,6 +174,31 @@ class sky6RASCOMTele(object):
         output = self.conn._send(command).splitlines()[0].split()      
         return output
     
+    def park(self):
+        command = """
+                sky6RASCOMTele.Park();
+                """     
+        output = self.conn._send(command).splitlines()
+        return 0
+
+    
+    def unpark(self):
+        command = """
+                sky6RASCOMTele.Unpark();
+                """     
+        output = self.conn._send(command).splitlines()
+        return 0
+
+    
+    def isSlewComplete(self):
+        command = """
+                Out = sky6RASCOMTele.IsSlewComplete;
+                """     
+        output = self.conn._send(command).splitlines()
+        return output
+
+
+
     def Sync(self, pos):
         ''' Sync to a given pos [ra, dec]
             ra, dec should be Jnow coordinates
