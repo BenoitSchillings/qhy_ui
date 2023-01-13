@@ -20,22 +20,21 @@ Basic functions to control qhyccd camera
 """
 800
 class qhyccd():
-    def __init__(self):
+    def __init__(self, cam_number):
         # create sdk handle
         #self.sdk= CDLL()
         self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
         self.tmp = CDLL('/usr/local/lib/libopencv_imgproc.so', mode=ctypes.RTLD_GLOBAL)
 
         self.sdk= CDLL('/usr/local/lib/libqhyccd.so.22.10.14.17')
-        #name = 'C:/Users/benoi/qhysdk/x64/qhyccd.dll'
-        #self.sdk = windll.LoadLibrary(name)
+
         self.sdk.GetQHYCCDParam.restype = c_double
         self.sdk.OpenQHYCCD.restype = ctypes.POINTER(c_uint32)
         # ref: https://www.qhyccd.com/bbs/index.php?topic=6356.0
         self.mode = 1 # set default mode to stream mode, otherwise set 0 for single frame mode
-        self.bpp = c_uint(8) # 8 bit
+        self.bpp = c_uint(16) # 8 bit
         self.exposureMS = 100 # 100ms
-        self.connect(self.mode)
+        self.connect(self.mode, cam_number)
         self.ClearBuffers()
 
     def GetModeName(self, mode_number):
@@ -48,7 +47,7 @@ class qhyccd():
         return str(self.name)
 
 
-    def connect(self, mode):
+    def connect(self, mode, cam_number = 0):
         ret = -1
         
         self.sdk.InitQHYCCDResource()
@@ -56,13 +55,13 @@ class qhyccd():
         type_char_array_32 = c_char*32
         self.id = type_char_array_32()
         #self.sdk.SetQHYCCDLogLevel(1)
-        self.sdk.GetQHYCCDId(c_int(0), self.id)    # open the first camera
+        self.sdk.GetQHYCCDId(c_int(cam_number), self.id)    # open the first camera
         print("Open camera:", self.id.value)
         self.name = self.id.value
         self.cam = self.sdk.OpenQHYCCD(self.id)
-        self.StopLive()
+
         print(self.GetModeName(1))
-        #self.sdk.resetDev(self.cam)
+ 
         self.sdk.SetQHYCCDReadMode(self.cam, 1)
         self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         self.sdk.InitQHYCCD(self.cam)
@@ -94,12 +93,8 @@ class qhyccd():
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
         #self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
-        self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
-        #self.SetDDR(0)
-        #print("ddr", self.GetDDR())
+        #self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
 
-        #print(self.GetSingleFrame())
-        
 
     def GetSize(self):
         tx = c_uint()

@@ -444,8 +444,10 @@ if __name__ == "__main__":
     parser.add_argument("-exp", type=float, default = 0.1, help="exposure in seconds (default 0.1)")
     parser.add_argument("-gain", "--gain", type=int, default = 100, help="camera gain (default 100)")
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
+    
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
-    parser.add_argument("-auto", "--auto", type=int, default = 0, "help="start guiding automatically")
+    parser.add_argument("-auto", "--auto", type=int, default = 0, help="start guiding automatically")
+    parser.add_argument("-cam", "--cam", type=int, default = 0, help="cam number")
     args = parser.parse_args()
 
     try:
@@ -457,8 +459,11 @@ if __name__ == "__main__":
         #sky.bump(120,0)
 
 
+    if (args.cam == -1):
+        camera = fake_cam(-10, args.exp, args.gain, args.crop)
+    else:
+        camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam)
 
-    camera = fake_cam(-10, args.exp, args.gain, args.crop)
     guider = guider(sky, camera)
 
     ui = UI(args, camera.size_x(), camera.size_y(), guider)

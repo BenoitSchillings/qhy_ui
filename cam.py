@@ -25,6 +25,10 @@ import collections
 import math
 
 import mover
+import logging as log
+
+log.basicConfig(level=log.INFO)
+
 
 sky = skyx.sky6RASCOMTele()
 ipc = IPC()
@@ -75,7 +79,7 @@ class UI:
     def click(self, event):
         event.accept()      
         self.pos = event.pos()
-        print (int(self.pos.x()),int(self.pos.y()))
+        print ("click", int(self.pos.x()),int(self.pos.y()))
 
     def convert_nparray_to_QPixmap(self,img):
         w,h = img.shape
@@ -396,6 +400,7 @@ if __name__ == "__main__":
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="auto start stop capture")
     parser.add_argument("-fits", "--fits", type=int, default = 0, help="save as fits files")
+    parser.add_argument("-cam", "--cam", type=int, default = 0, help="cam number")
     args = parser.parse_args()
 
     try:
@@ -409,7 +414,7 @@ if __name__ == "__main__":
 
 
 
-    camera = qhy_cam(-5, args.exp, args.gain, args.crop)
+    camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam)
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
     camera.start()
