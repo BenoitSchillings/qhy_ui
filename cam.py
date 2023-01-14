@@ -344,18 +344,18 @@ class UI:
         mean_old = 0.0
 
         while(self.win.quit == 0):
-            time.sleep(0.002)
+            time.sleep(0.02)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 print("move at " + str(rx) + " " + str(ry))
             
             
             app.processEvents()
-            self.array = camera.get_frame()
-            mean_new = np.mean(self.array)
+            result = camera.get_frame()
+            #print(result)
 
-            if (mean_new != mean_old):
-                mean_old = mean_new
+            if (result is not None):
+                self.array = result
 
                 self.cnt = self.cnt + 1
                 if (self.capture_state == 1):

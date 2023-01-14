@@ -299,14 +299,14 @@ def fit_moffat_elliptical(xy, data):
 
 
 
-from scipy.signal import medfilt2d
-
-
-
+from cv2 import medianBlur
 
 def find_high_value_element(array, size = 3):
   # Apply median filter to the array
-  filtered_array = medfilt2d(array, size)
+  filtered_array = medianBlur(array,3)
+
+
+  #filtered_array = array
 
   # Find the indices of the maximum value
   row, col = np.where(filtered_array == np.max(filtered_array))
@@ -317,6 +317,8 @@ def find_high_value_element(array, size = 3):
   
 
 def compute_centroid(array, x, y):
+
+
   # Find the indices and values of the star pixels in the array
 
   array = array[y - 16: y + 16, x - 16:x + 16]

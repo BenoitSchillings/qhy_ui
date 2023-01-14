@@ -86,7 +86,7 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(20))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(90))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)
@@ -206,8 +206,10 @@ class qhyccd():
     
     def GetLiveFrame(self):
         """ Return live image """
-        self.sdk.GetQHYCCDLiveFrame(self.cam, byref(self.roi_h), byref(self.roi_w), 
+        result = self.sdk.GetQHYCCDLiveFrame(self.cam, byref(self.roi_h), byref(self.roi_w), 
                 byref(self.bpp), byref(self.channels), self.imgdata)
+        if (result < 0):
+            return None
         return np.asarray(self.imgdata)
 
     def StopLive(self):

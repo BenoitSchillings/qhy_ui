@@ -396,7 +396,8 @@ class UI:
         mean_old = 0.0
 
         while(self.win.quit == 0):
-            time.sleep(0.002)
+            time.sleep(0.01)
+           
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 guider.cheat_move_x = guider.cheat_move_x + rx
@@ -406,17 +407,18 @@ class UI:
             
             
             app.processEvents()
-            self.array = camera.get_frame()
-            mean_new = np.mean(self.array)
+            result = camera.get_frame()
+            #print(result)
 
-            if (mean_new != mean_old):
-                mean_old = mean_new
+            if (result is not None):
+                self.array = result
 
                 max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
-                log.info("max value = %d %d", max_x, max_y)
-                self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
-                log.info("calc centroid = %f %f", self.cx, self.cy)
-
+                #log.info("max value = %d %d", max_x, max_y)
+                #self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
+                #log.info("calc centroid = %f %f", self.cx, self.cy)
+                self.cx = 0
+                self.cy = 0
                 self.ipc_check()
 
 
