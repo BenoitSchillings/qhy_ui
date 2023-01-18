@@ -109,7 +109,7 @@ class UI:
         self.frame_per_file = count
         
         self.win = FrameWindow()
-        self.EDGE = 16
+        self.EDGE = 32
         
         self.win.resize(1500,1100)
         
@@ -347,6 +347,7 @@ class UI:
             time.sleep(0.02)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
+                sky.rate(rx, ry)
                 print("move at " + str(rx) + " " + str(ry))
             
             

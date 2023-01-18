@@ -323,7 +323,7 @@ def compute_centroid(array, x, y):
 
   array = array[y - 16: y + 16, x - 16:x + 16]
 
-  array = array - (np.min(array) + 3.0 * np.std(array))
+  array = array - (np.min(array) + 1.0 * np.std(array))
 
   rows, cols = np.where(array > 0.0)
   values = array[rows, cols]

@@ -33,6 +33,8 @@ class guider:
         self.cheat_move_x += dx / 50.0
         self.cheat_move_y += dy / 50.0
 
+        if not (self.mount is None):
+            self.mount.bump(dx,dy)
 
     def start_calibrate(self):
         log("calibrate")

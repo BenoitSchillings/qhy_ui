@@ -35,7 +35,7 @@ sky = skyx.sky6RASCOMTele()
 
 ipc = IPC()
 
-ipc.set_val("bump", [1,2])
+ipc.set_val("bump", [0,0])
 
 
 #--------------------------------------------------------
@@ -48,7 +48,7 @@ from guider import *
 
 
 def rand_move():
-    guider.fbump(random.uniform(-277, 270), random.uniform(-270, 270))
+    guider.fbump(random.uniform(-500, 500), random.uniform(-500, 500))
 
 
 class fake_cam:
@@ -414,11 +414,11 @@ class UI:
                 self.array = result
 
                 max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
-                #log.info("max value = %d %d", max_x, max_y)
-                #self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
-                #log.info("calc centroid = %f %f", self.cx, self.cy)
-                self.cx = 0
-                self.cy = 0
+                log.info("max value = %d %d", max_x, max_y)
+                self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
+                log.info("calc centroid = %f %f", self.cx, self.cy)
+                #self.cx = 0
+                #self.cy = 0
                 self.ipc_check()
 
 
