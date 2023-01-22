@@ -400,11 +400,9 @@ class UI:
            
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                guider.cheat_move_x = guider.cheat_move_x + rx
-                guider.cheat_move_y = guider.cheat_move_y + ry
-               
-                log.info("move at %f %f", rx, ry)
-            
+                sky.rate(rx * 4.0, ry * 4.0)
+                print("move at " + str(rx) + " " + str(ry))
+           
             
             app.processEvents()
             result = camera.get_frame()
