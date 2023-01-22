@@ -18,7 +18,8 @@ class guider:
         #self.filter = KalmanFilter(0.1)
         self.gain_x = 110.0
         self.gain_y = 110.0
-
+        self.center_x = 0
+        self_center_y = 0
         self.cheat_move_x = 0.0
         self.cheat_move_y = 0.0
 
@@ -34,7 +35,7 @@ class guider:
         self.cheat_move_y += dy / 50.0
 
         if not (self.mount is None):
-            self.mount.bump(dx,dy)
+            self.mount.jog(dx/3600.0,dy/3600.0)
 
     def start_calibrate(self):
         log("calibrate")
@@ -105,7 +106,7 @@ class guider:
         log.info("set pos %d %d", x, y)
 
     def calibrate(self):
-        self.cal_state = 20
+        self.cal_state = 40
         self.guide_state = 0
 
 
@@ -113,30 +114,31 @@ class guider:
         self.guide_state = 1
 
     def handle_calibrate(self, x, y):
-        if (self.cal_state == 20):
+        N = 900
+        if (self.cal_state == 40):
             self.pos_x0 = x
             self.pos_y0 = y
-            self.fbump(-300, 0)
+            self.fbump(-N, 0.0001)
             log.info("Move Left")
 
-        if (self.cal_state == 15):
+        if (self.cal_state == 30):
             self.pos_x1 = x
             self.pos_y1 = y
-            self.fbump(300, 0)
+            self.fbump(N, 0.0001)
             log.info("Move Right")
 
 
-        if (self.cal_state == 10):
+        if (self.cal_state == 20):
             self.pos_x2 = x
             self.pos_y2 = y
-            self.fbump(0, -300)
+            self.fbump(0.0001, -N)
             log.info("Move Up")
 
 
-        if (self.cal_state == 5):
+        if (self.cal_state == 10):
             self.pos_x3 = x
             self.pos_y3 = y
-            self.fbump(0, 300)
+            self.fbump(0.0001, N)
             log.info("Move Down")
 
 
@@ -180,7 +182,7 @@ class guider:
             dx = x - self.center_x
             dy = y - self.center_y
 
-           
+            #ipc.set_val("guide_error", [dx,dy])
             self.dis = self.distance(dx,dy)
 
             if (self.dis > 20.0):

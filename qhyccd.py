@@ -20,7 +20,7 @@ Basic functions to control qhyccd camera
 """
 800
 class qhyccd():
-    def __init__(self, cam_number):
+    def __init__(self, cam_name):
         # create sdk handle
         #self.sdk= CDLL()
         self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
@@ -34,7 +34,7 @@ class qhyccd():
         self.mode = 1 # set default mode to stream mode, otherwise set 0 for single frame mode
         self.bpp = c_uint(16) # 8 bit
         self.exposureMS = 100 # 100ms
-        self.connect(self.mode, cam_number)
+        self.connect(self.mode, cam_name)
         self.ClearBuffers()
 
     def GetModeName(self, mode_number):
@@ -47,7 +47,7 @@ class qhyccd():
         return str(self.name)
 
 
-    def connect(self, mode, cam_number = 0):
+    def connect(self, mode, cam_name):
         ret = -1
         
         self.sdk.InitQHYCCDResource()
@@ -55,8 +55,16 @@ class qhyccd():
         type_char_array_32 = c_char*32
         self.id = type_char_array_32()
         #self.sdk.SetQHYCCDLogLevel(1)
-        self.sdk.GetQHYCCDId(c_int(cam_number), self.id)    # open the first camera
-        print("Open camera:", self.id.value)
+
+        for id in range(3):
+            self.sdk.GetQHYCCDId(c_int(id), self.id)    # open the first camera
+            name = str(self.id.value)
+            if (cam_name in name):
+                print("FOUND")
+                break
+
+        #self.sdk.GetQHYCCDId(c_int(1), self.id)        
+        print("Open camera:", self.id)
         self.name = self.id.value
         self.cam = self.sdk.OpenQHYCCD(self.id)
 
@@ -86,7 +94,7 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(211))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(51))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)

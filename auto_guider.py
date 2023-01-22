@@ -419,7 +419,7 @@ class UI:
                 log.info("calc centroid = %f %f", self.cx, self.cy)
                 #self.cx = 0
                 #self.cy = 0
-                self.ipc_check()
+                #self.ipc_check()
 
 
                 self.guider.pos_handler(self.cx, self.cy)
@@ -449,13 +449,14 @@ if __name__ == "__main__":
     
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="start guiding automatically")
-    parser.add_argument("-cam", "--cam", type=int, default = 0, help="cam number")
+    parser.add_argument("-cam", "--cam", type=str, default = 0, help="cam name")
     args = parser.parse_args()
 
     try:
         sky.Connect()
     except:
         sky = None
+        print("NO SKY")
 
     #if not (sky is None):
         #sky.bump(120,0)

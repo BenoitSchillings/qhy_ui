@@ -52,6 +52,7 @@ class FrameWindow(QtWidgets.QMainWindow):
         QtWidgets.QMainWindow.__init__(self)
         self.quit = 0
         self._createMenuBar()
+        self.setWindowTitle(camera.name())
 
     def on_auto_level(self):
         global ui
@@ -181,7 +182,7 @@ class UI:
         self.win.setStatusBar(self.statusBar)
         
       
-        self. win.setWindowTitle('qhycam')
+        
         self.imv.getImageItem().mouseClickEvent = self.click
         self.cnt = 0
 
@@ -296,6 +297,11 @@ class UI:
             self.temp = camera.qc.GetTemperature()
             self.txt3.setText("Temp = " + str(self.temp) + " fps=" + "{:.2f}".format(self.fps))
 
+    def add_lines(self, img):
+       
+        
+        return img 
+        
     def update(self):
         def possible_star(array):
             max = np.max(array)
@@ -304,6 +310,10 @@ class UI:
 
             return ((max - min) > (std*10))
 
+        shape = self.array.shape
+       
+        #self.array[shape[0]//2-32:shape[0]//2+32, shape[1]//2-32:shape[1]//2+32] += 10000
+ 
         self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
  
         if (self.auto_level):
@@ -347,7 +357,7 @@ class UI:
             time.sleep(0.02)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                sky.rate(rx, ry)
+                sky.rate(rx * 4.0, ry * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
             
             
@@ -401,7 +411,7 @@ if __name__ == "__main__":
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="auto start stop capture")
     parser.add_argument("-fits", "--fits", type=int, default = 0, help="save as fits files")
-    parser.add_argument("-cam", "--cam", type=int, default = 0, help="cam number")
+    parser.add_argument("-cam", "--cam", type=str, default = "", help="cam name")
     args = parser.parse_args()
 
     try:
@@ -415,7 +425,7 @@ if __name__ == "__main__":
 
 
 
-    camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam)
+    camera = qhy_cam(-10, args.exp, args.gain, args.crop, args.cam)
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
     camera.start()

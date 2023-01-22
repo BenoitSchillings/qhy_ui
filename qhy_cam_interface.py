@@ -1,8 +1,8 @@
 import qhyccd
 
 class qhy_cam:
-    def __init__(self, temp, exp, gain, crop, cam_number):
-        self.qc = qhyccd.qhyccd(cam_number)
+    def __init__(self, temp, exp, gain, crop, cam_name):
+        self.qc = qhyccd.qhyccd(cam_name)
         self.dt = exp
         self.gain = gain
         self.qc.GetSize()
