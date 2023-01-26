@@ -25,7 +25,7 @@ def fit_gauss_circular(data):
     maxi = data.max()
     floor = np.ma.median(data.flatten())
     height = maxi - floor
-    if height < 2000:
+    if height < 200:
         return 0
     if height==0.0:                #if star is saturated it could be that median value is 32767 or 65535 --> height=0
         floor = np.mean(data.flatten())
@@ -302,7 +302,7 @@ def fit_moffat_elliptical(xy, data):
 from cv2 import medianBlur
 
 def find_high_value_element(array, size = 3):
-  # Apply median filter to the array
+ 
   filtered_array = medianBlur(array,3)
 
 

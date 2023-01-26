@@ -36,6 +36,8 @@ class qhyccd():
         self.exposureMS = 100 # 100ms
         self.connect(self.mode, cam_name)
         self.ClearBuffers()
+        self.start_time = 0
+        self.live = False
 
     def GetModeName(self, mode_number):
         mode_char_array_32 = c_char*32
@@ -67,11 +69,11 @@ class qhyccd():
         print("Open camera:", self.id)
         self.name = self.id.value
         self.cam = self.sdk.OpenQHYCCD(self.id)
-
+        self.sdk.StopQHYCCDLive(self.cam)   #here
         print(self.GetModeName(1))
  
         self.sdk.SetQHYCCDReadMode(self.cam, 1)
-        self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
+        self.sdk.SetQHYCCDStreamMode(self.cam, 0)  
         self.sdk.InitQHYCCD(self.cam)
 
         # Get Camera Parameters
@@ -94,13 +96,13 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(51))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(1))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
-        #self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
+        self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
         #self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
 
 
@@ -145,6 +147,7 @@ class qhyccd():
         # sdk exposure uses us as unit
         self.exposureMS = exposureMS # input ms
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_EXPOSURE, c_double(exposureMS*1000))
+        self.ClearBuffers()
         print("Set exposure to", 
                 self.sdk.GetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_EXPOSURE)/1000)
 
@@ -181,7 +184,16 @@ class qhyccd():
     def GetDDR(self):
        return self.sdk.GetQHYCCDParam(self.cam, CONTROL_ID.DDR_BUFFER_CAPACITY)
 
-
+    def exposing_done(self):
+        t0 = time.time()
+        #print(self.start_time, t0)
+        if (self.start_time == 0):
+            return True
+        if (t0 > (self.start_time + self.exposureMS/1000.0)):
+            return True
+        return False
+        
+        
     def SetDDR(self, value):
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(value))
         
@@ -200,17 +212,32 @@ class qhyccd():
 
     """ Exposure and return single frame """
     def GetSingleFrame(self):
-        ret = self.sdk.ExpQHYCCDSingleFrame(self.cam)
-        ret = self.sdk.GetQHYCCDSingleFrame(
-            self.cam, byref(self.roi_w), byref(self.roi_h), byref(self.bpp),
-            byref(self.channels), self.imgdata)
-        return np.asarray(self.imgdata) #.reshape([self.roi_h.value, self.roi_w.value])
-   
+        if (self.live):
+            return GetLiveFrame()
 
-    def BeginLive(self):
+        if (self.exposing_done()):
+            #print("exposing done")
+            ret = self.sdk.GetQHYCCDSingleFrame(self.cam, byref(self.roi_w), byref(self.roi_h), byref(self.bpp),byref(self.channels), self.imgdata)
+            
+            self.sdk.ExpQHYCCDSingleFrame(self.cam)
+            self.start_time = time.time()
+            return np.asarray(self.imgdata) #.reshape([self.roi_h.value, self.roi_w.value])
+
+        #print("still exposing")
+        return None
+
+  
+
+    def Begin(self):
         """ Begin live mode"""
-        #self.sdk.SetQHYCCDStreamMode(self.cam, 1)  # Live mode
-        self.sdk.BeginQHYCCDLive(self.cam)
+        if (self.live):
+            self.sdk.SetQHYCCDStreamMode(self.cam, 1)  # Live mode
+            self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
+            self.sdk.BeginQHYCCDLive(self.cam)
+        else:
+            self.sdk.ExpQHYCCDSingleFrame(self.cam)
+            self.start_time = time.time()
+
     
     def GetLiveFrame(self):
         """ Return live image """

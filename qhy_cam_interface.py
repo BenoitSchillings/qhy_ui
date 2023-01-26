@@ -8,6 +8,7 @@ class qhy_cam:
         self.qc.GetSize()
         self.qc.SetBit(16)
         self.qc.SetUSB(3)
+       
 
         self.qc.SetOffset(144) #for guider
         #self.qc.SetOffset(100) #for imager
@@ -28,16 +29,16 @@ class qhy_cam:
         
    
     def get_frame(self):        
-        self.frame = self.qc.GetLiveFrame()
+        self.frame = self.qc.GetSingleFrame()
         return self.frame
         
     def start(self):
         self.running = 1
-        self.qc.BeginLive()
+        self.qc.Begin()
         
     def close(self):
         self.running = 0
-        self.qc.StopLive()
+        #self.qc.StopLive()
 
     def size_x(self):
         return self.sizex
@@ -47,4 +48,5 @@ class qhy_cam:
 
     def name(self):
         return self.qc.GetName()
-        
+
+

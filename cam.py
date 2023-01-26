@@ -110,7 +110,7 @@ class UI:
         self.frame_per_file = count
         
         self.win = FrameWindow()
-        self.EDGE = 32
+        self.EDGE = 64
         
         self.win.resize(1500,1100)
         
@@ -220,12 +220,15 @@ class UI:
         hdr['CRVAL2'] = 0.0 # Declination
         if not (sky is None):
             p0 = sky.GetRaDec()
-            ra =  p0[0][0:8]
-            dec = p0[1][0:8]
-            print(float(ra), float(dec))
-            hdr['CRVAL1'] = float(ra) * 15.0 # Right Ascension
-            hdr['CRVAL2'] = float(dec) # Declination
+            try:
+                ra =  p0[0][0:8]
 
+                dec = p0[1][0:8]
+                print(float(ra), float(dec))
+                hdr['CRVAL1'] = float(ra) * 15.0 # Right Ascension
+                hdr['CRVAL2'] = float(dec) # Declination
+            except:
+                print("bad p0", p0)
         return hdr
 
     def add_to_save(self, buffer):
@@ -239,6 +242,12 @@ class UI:
             hdr = self.set_fits_header()
 
             fits.writeto(fn, buffer, hdr, overwrite=True)
+
+
+        if (self.cnt % 10 == 9):
+            #ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
+            print("RND")
+
 
 
     def toggle_capture(self):
@@ -333,7 +342,7 @@ class UI:
         if possible_star(sub):
             self.fwhm = fit_gauss_circular(sub)
         else:
-            self.fwhm = 1.0
+            self.fwhm = 5.0
 
         self.rms = np.std(self.array)
 
@@ -351,8 +360,6 @@ class UI:
 
     def mainloop(self, args, camera):
 
-        mean_old = 0.0
-
         while(self.win.quit == 0):
             time.sleep(0.02)
             if (self.mover.moving()):
@@ -363,7 +370,7 @@ class UI:
             
             app.processEvents()
             result = camera.get_frame()
-            #print(result)
+           
 
             if (result is not None):
                 self.array = result
@@ -424,7 +431,7 @@ if __name__ == "__main__":
         #sky.bump(120,0)
 
 
-
+    ipc.set_val("bump", [1.1,1.1])
     camera = qhy_cam(-10, args.exp, args.gain, args.crop, args.cam)
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     

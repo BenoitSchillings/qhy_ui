@@ -35,7 +35,10 @@ class guider:
         self.cheat_move_y += dy / 50.0
 
         if not (self.mount is None):
-            self.mount.jog(dx/3600.0,dy/3600.0)
+            print(dx, dy)
+            if (np.abs(dx) < 3250.0 and np.abs(dy) < 3250):
+                print("job")
+                self.mount.jog(dx/3600.0,dy/3600.0)
 
     def start_calibrate(self):
         log("calibrate")
@@ -114,7 +117,7 @@ class guider:
         self.guide_state = 1
 
     def handle_calibrate(self, x, y):
-        N = 900
+        N = 1500
         if (self.cal_state == 40):
             self.pos_x0 = x
             self.pos_y0 = y
@@ -206,8 +209,8 @@ class guider:
                 self.gain_y = self.gain_y - 0.1
                              
 
-            tx = self.error_to_tx(self.gain_x * dx, self.gain_y * dy)
-            ty = self.error_to_ty(self.gain_x *dx, self.gain_y * dy)
+            tx = 3.0*self.error_to_tx(self.gain_x * dx, self.gain_y * dy)
+            ty = 3.0*self.error_to_ty(self.gain_x *dx, self.gain_y * dy)
 
             log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
             self.fbump(tx, ty)

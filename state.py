@@ -7,6 +7,8 @@ log.basicConfig(level=log.INFO)
 
 server = IPC(type = zmq.REP)
 variables = {'': 0}
+variables['bump'] = [0,0]
+
 while(True):
 	data = server.get()
 	#print("data")
