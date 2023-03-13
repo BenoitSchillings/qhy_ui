@@ -101,7 +101,7 @@ class qhyccd():
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)
         # Maximum fan speed
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(0))
         self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
         #self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
 
