@@ -3,6 +3,7 @@
 import logging as log
 from util import *
 import pickle
+from ao import ao
 
 
 
@@ -10,6 +11,7 @@ class guider:
     def __init__(self, mount, camera):
         log.info("init")
         self.reset()
+        self.ao = ao()
         self.mount = mount
         self.camera = camera
         self.guide_inited = 0
@@ -31,6 +33,8 @@ class guider:
 
         self.cheat_move_x += dx / 50.0
         self.cheat_move_y += dy / 50.0
+
+        self.ao.goto(round(dx), round(dy))
 
 
     def fbump_mount(self, dx, dy):

@@ -465,8 +465,6 @@ if __name__ == "__main__":
         sky = None
         print("NO SKY")
 
-    #if not (sky is None):
-        #sky.bump(120,0)
 
 
     if (args.cam == -1):
