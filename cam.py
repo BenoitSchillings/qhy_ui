@@ -432,7 +432,7 @@ if __name__ == "__main__":
 
 
     ipc.set_val("bump", [1.1,1.1])
-    camera = qhy_cam(-10, args.exp, args.gain, args.crop, args.cam)
+    camera = qhy_cam(20, args.exp, args.gain, args.crop, args.cam)
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
     camera.start()

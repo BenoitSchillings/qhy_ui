@@ -233,8 +233,11 @@ class UI:
         
         
 
-        self.calibrate_button =  QtWidgets.QPushButton("Calibrate")
-        rightlayout.layout().addWidget(self.calibrate_button)
+        self.calibrate_button_mount =  QtWidgets.QPushButton("Calibrate_mount")
+        rightlayout.layout().addWidget(self.calibrate_button_mount)
+        self.calibrate_button_ao =  QtWidgets.QPushButton("Calibrate_ao")
+        rightlayout.layout().addWidget(self.calibrate_button_ao)
+
         self.guide_button =  QtWidgets.QPushButton("Guide")
         rightlayout.layout().addWidget(self.guide_button)
         self.bump_button =  QtWidgets.QPushButton("bump")
@@ -270,7 +273,8 @@ class UI:
         self.imv.getImageItem().mouseClickEvent = self.click
         self.cnt = 0
 
-        self.calibrate_button.clicked.connect(self.Calibrate_buttonClick)
+        self.calibrate_button_mount.clicked.connect(self.Calibrate_mount_buttonClick)
+        self.calibrate_button_ao.clicked.connect(self.Calibrate_ao_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
         self.guide_button.clicked.connect(self.Guide_buttonClick)
         self.bump_button.clicked.connect(self.Bump_buttonClick)
@@ -295,9 +299,14 @@ class UI:
 
 
 
-    def Calibrate_buttonClick(self):
-        self.guider.calibrate()
-        log.info("Calibrate")
+    def Calibrate_ao_buttonClick(self):
+        self.guider.calibrate_ao()
+        log.info("Calibrate_ao")
+
+
+    def Calibrate_mount_buttonClick(self):
+        self.guider.calibrate_mount()
+        log.info("Calibrate_mount")
 
     def Guide_buttonClick(self):
         self.guider.guide()
