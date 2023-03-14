@@ -116,6 +116,13 @@ class guider:
         self.mount_dy1 = 0
         self.mount_dx2 = 0
         self.mount_dy2 = 0
+
+        self.ao_dx1 = 0
+        self.ao_dy1 = 0
+        self.ao_dx2 = 0
+        self.ao_dy2 = 0
+
+
         self.guide_state_mount = 0
         self.cal_state_mount = 0
 
@@ -142,28 +149,28 @@ class guider:
     def handle_calibrate_ao(self, x, y):
         N = 80
         if (self.mount_cal_state == 40):
-            self.pos_x0 = x
-            self.pos_y0 = y
+            self.ao_pos_x0 = x
+            self.ao_pos_y0 = y
             self.fbump_ao(-N, 0)
             log.info("Move Left")
 
         if (self.mount_cal_state == 30):
-            self.pos_x1 = x
-            self.pos_y1 = y
+            self.ao_pos_x1 = x
+            self.ao_pos_y1 = y
             self.fbump_ao(N, 0)
             log.info("Move Right")
 
 
         if (self.mount_cal_state == 20):
-            self.pos_x2 = x
-            self.pos_y2 = y
+            self.ao_pos_x2 = x
+            self.ao_pos_y2 = y
             self.fbump_ao(0, -N)
             log.info("Move Up")
 
 
         if (self.mount_cal_state == 10):
-            self.pos_x3 = x
-            self.pos_y3 = y
+            self.ao_pos_x3 = x
+            self.ao_pos_y3 = y
             self.fbump_ao(0, N)
             log.info("Move Down")
 
@@ -179,28 +186,28 @@ class guider:
     def handle_calibrate_mount(self, x, y):
         N = 1500
         if (self.mount_cal_state == 40):
-            self.pos_x0 = x
-            self.pos_y0 = y
+            self.mount_pos_x0 = x
+            self.mount_pos_y0 = y
             self.fbump_mount(-N, 0.0001)
             log.info("Move Left")
 
         if (self.mount_cal_state == 30):
-            self.pos_x1 = x
-            self.pos_y1 = y
+            self.mount_pos_x1 = x
+            self.mount_pos_y1 = y
             self.fbump_mount(N, 0.0001)
             log.info("Move Right")
 
 
         if (self.mount_cal_state == 20):
-            self.pos_x2 = x
-            self.pos_y2 = y
+            self.mount_pos_x2 = x
+            self.mount_pos_y2 = y
             self.fbump_mount(0.0001, -N)
             log.info("Move Up")
 
 
         if (self.mount_cal_state == 10):
-            self.pos_x3 = x
-            self.pos_y3 = y
+            self.mount_pos_x3 = x
+            self.mount_pos_y3 = y
             self.fbump_mount(0.0001, N)
             log.info("Move Down")
 
@@ -269,6 +276,32 @@ class guider:
 
             log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
             self.fbump_ao(tx, ty)
+
+    def handle_guide_ao(self, x, y):
+        if (self.guide_inited_ao == 0):
+            self.center_x = x
+            self.center_y = y
+            self.guide_inited_ao = 1
+        else:
+            dx = x - self.center_x
+            dy = y - self.center_y
+
+            #ipc.set_val("guide_error", [dx,dy])
+            self.dis = self.distance(dx,dy)
+
+            if (self.dis > 20.0):
+                return
+
+            self.last_x.add_value(dx)
+            self.last_y.add_value(dy)
+
+            tx = 3.0*self.error_to_tx_ao(dx, dy)
+            ty = 3.0*self.error_to_ty_ao(dx, dy)
+
+            log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
+            self.fbump_ao(tx, ty)
+            #self.mount(bump, tx, ty)
+
 
 
     def handle_guide_mount(self, x, y):
