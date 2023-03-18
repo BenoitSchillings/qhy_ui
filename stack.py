@@ -49,7 +49,7 @@ def fn(idx):
 
 
 frame = 0
-img0 = fits.getdata(fn(0), ext=0) * 2.0
+img0 = fits.getdata(fn(0), ext=0)
 sum = np.empty_like(img0, dtype=float)
 
 flat = fits.getdata("flat.fits", ext=0).astype(np.float)
@@ -60,13 +60,14 @@ flat = flat - bias
 flat = np.clip(flat, 1000, 128000)
 #flat = np.abs(flat) + 0.1
 
-print("bias", bias.mean(), bias.min(), bias.max())
-print("flat", flat.mean(), flat.min(), flat.max())
-print("dark", dark.mean(), dark.min(), dark.max())
-dark = dark - 90
+print("bias", bias.mean(), bias.min(), bias.max(), bias[0][0])
+print("flat", flat.mean(), flat.min(), flat.max(), flat[0][0])
+print("dark", dark.mean(), dark.min(), dark.max(), dark[0][0])
+#dark = dark - 90
 flat = flat / np.mean(flat)
+dark = dark - bias
 
-img0 = img0 - dark
+img0 = img0 - (1.0*dark + bias)
 img0 = img0 / flat
 ref_level = np.percentile(img0, 20)
 
@@ -78,7 +79,8 @@ images_prop = np.array([], dtype=img_prop)
 for frame in range(0, len(files)):
 	img = fits.getdata(fn(frame), ext=0).astype(np.float)
 	
-	img = img - (dark)
+	img = img -  (1.0*dark + bias - 80)
+	print("top ", img[0][0])
 	img = img / flat
 	ref_level1 = np.percentile(img, 20)
 
@@ -87,27 +89,20 @@ for frame in range(0, len(files)):
 	#yoff1,xoff1 = image_registration.cross_correlation_shifts(crop_a(img, 2048), crop_a(img0, 2048))
 	#print(yoff,xoff,yoff1,xoff1)
 	
-	shifted = np.roll(np.roll(img,int(round(yoff)),1),int(round(xoff)),0)
-	#shifted = image_registration.fft_tools.shift.shift2d(img, yoff, xoff)
-	#delta = sharpness(crop_center(shifted, 1024))
-	delta = -np.mean(shifted - img0)
-	print(delta)
-	
-	element = [(frame, xoff, yoff, -delta, fn(frame))]
-	images_prop = np.append(images_prop, np.array(element, dtype=img_prop))
+	if (np.abs(yoff) < 20.0 and np.abs(xoff) < 20.0):
+		shifted = np.roll(np.roll(img,int(round(yoff)),1),int(round(xoff)),0)
+		#shifted = image_registration.fft_tools.shift.shift2d(img, yoff, xoff)
+		#delta = sharpness(crop_center(shifted, 1024))
+		delta = -np.mean(shifted - img0)
+		print(delta)
+		
+		element = [(frame, xoff, yoff, -delta, fn(frame))]
+		images_prop = np.append(images_prop, np.array(element, dtype=img_prop))
 
-	frame = frame + 1
+		#frame = frame + 1
 
-	sum +=  shifted
-	print(frame ," of " ,len(files), yoff,xoff)
-	img = sum / 65535.0
-	img = img -  np.percentile(img, 1)
-	max = np.max(img)/4.0
-	img = img / max
-	print(max)
+		sum +=  shifted
 
-	#cv2.imshow("image", 0.03 + bin(bin(img)))
-	#key = cv2.waitKey(1)
 
 hdr = fits.header.Header()
 fits.writeto("result" + str(time.time()) + ".fits", sum.astype(np.float32), hdr, overwrite=True)

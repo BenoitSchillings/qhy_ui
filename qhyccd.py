@@ -26,7 +26,7 @@ class qhyccd():
         self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
         self.tmp = CDLL('/usr/local/lib/libopencv_imgproc.so', mode=ctypes.RTLD_GLOBAL)
 
-        self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.1.11.17')
+        self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.2.10.10')
 
         self.sdk.GetQHYCCDParam.restype = c_double
         self.sdk.OpenQHYCCD.restype = ctypes.POINTER(c_uint32)
@@ -65,6 +65,8 @@ class qhyccd():
                 print("FOUND")
                 break
 
+        if (not cam_name in name):
+            exit()
         #self.sdk.GetQHYCCDId(c_int(1), self.id)        
         print("Open camera:", self.id)
         self.name = self.id.value

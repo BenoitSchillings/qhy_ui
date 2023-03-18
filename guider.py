@@ -16,14 +16,14 @@ class guider:
         self.camera = camera
         self.guide_inited = 0
         #self.filter = KalmanFilter(0.1)
-        self.gain_x = 110.0
-        self.gain_y = 110.0
+        self.gain_x = 210.0
+        self.gain_y = 210.0
         self.center_x = 0
         self_center_y = 0
         self.cheat_move_x = 0.0
         self.cheat_move_y = 0.0
 
-        N = 4
+        N = 2
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
         self.load_state("guide.data")
@@ -33,11 +33,13 @@ class guider:
 
         self.cheat_move_x += dx / 50.0
         self.cheat_move_y += dy / 50.0
-
+        print("p0")
         if not (self.mount is None):
+            print("p1")
             print(dx, dy)
             if (np.abs(dx) < 3250.0 and np.abs(dy) < 3250):
                 print("job")
+                print("LOG MOVE", dx, dy)
                 self.mount.jog(dx/3600.0,dy/3600.0)
 
     def start_calibrate(self):
@@ -177,6 +179,7 @@ class guider:
         log.info("new guide position %f %f", self.center_x, self_center_y)
 
     def handle_guide(self, x, y):
+        print("LOG", x, y)
         if (self.guide_inited == 0):
             self.center_x = x
             self.center_y = y
@@ -188,7 +191,7 @@ class guider:
             #ipc.set_val("guide_error", [dx,dy])
             self.dis = self.distance(dx,dy)
 
-            if (self.dis > 20.0):
+            if (self.dis > 50.0):
                 return
             #self.filter.update(GPoint(dx,dy))
             #val = self.filter.value()
@@ -198,15 +201,15 @@ class guider:
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
 
-            if (self.last_x.same_sign()):
-                self.gain_x = self.gain_x + 0.1
-            else:
-                self.gain_x = self.gain_x - 0.1
+            # if (self.last_x.same_sign()):
+            #     self.gain_x = self.gain_x + 3.1
+            # else:
+            #     self.gain_x = self.gain_x - 3.1
                 
-            if (self.last_y.same_sign()):
-                self.gain_y = self.gain_y + 0.1
-            else:
-                self.gain_y = self.gain_y - 0.1
+            # if (self.last_y.same_sign()):
+            #     self.gain_y = self.gain_y + 3.1
+            # else:
+            #     self.gain_y = self.gain_y - 3.1
                              
 
             tx = 3.0*self.error_to_tx(self.gain_x * dx, self.gain_y * dy)
@@ -218,6 +221,11 @@ class guider:
 
         log.info("get guide point %f %f", x, y)
 
+    def drizzle(self, dx, dy):
+        self.center_x = self.center_x + dx 
+        self.center_y = self.center_y + dy 
+
+        
     def pos_handler(self, x, y):
         log.info("handler %f %f", x, y)
         if self.cal_state != 0:

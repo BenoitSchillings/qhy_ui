@@ -411,9 +411,9 @@ class UI:
             if (result is not None):
                 self.array = result
 
-                max_y, max_x = find_high_value_element(self.array[16:-16, 16:-16])
+                max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
                 log.info("max value = %d %d", max_x, max_y)
-                self.cy, self.cx, cv = compute_centroid(self.array, max_y + 16, max_x + 16)
+                self.cy, self.cx, cv = compute_centroid(self.array, max_y + 32, max_x + 32)
                 log.info("calc centroid = %f %f", self.cx, self.cy)
                 #self.cx = 0
                 #self.cy = 0
@@ -455,6 +455,7 @@ if __name__ == "__main__":
     except:
         sky = None
         print("NO SKY")
+
 
     #if not (sky is None):
         #sky.bump(120,0)

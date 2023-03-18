@@ -112,7 +112,7 @@ class UI:
         self.win = FrameWindow()
         self.EDGE = 64
         
-        self.win.resize(1500,1100)
+        self.win.resize(1500,1000)
         
         self.imv = pg.ImageView()
         self.imv.setImage(self.array)
@@ -134,7 +134,7 @@ class UI:
 
         temp_widget.layout().addWidget(self.mover)
         self.plt = pg.plot(title='Dynamic Plotting with PyQtGraph')
-        self.plt_bufsize = 200
+        self.plt_bufsize = 100
         self.x = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
         self.y = np.zeros(self.plt_bufsize, dtype=np.float64)
         self.databuffer = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
@@ -150,7 +150,7 @@ class UI:
 
         rightlayout = QtWidgets.QWidget(self.win)
         rightlayout.setLayout(QtWidgets.QVBoxLayout())
-        rightlayout.setFixedSize(564, 228)
+        rightlayout.setFixedSize(464, 158)
         
         self.filename = QtWidgets.QLineEdit(args.filename)
         rightlayout.layout().addWidget(self.filename)
@@ -244,8 +244,8 @@ class UI:
             fits.writeto(fn, buffer, hdr, overwrite=True)
 
 
-        if (self.cnt % 10 == 9):
-            #ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
+        if (self.cnt % 5 == 1):
+            ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
             print("RND")
 
 
@@ -297,12 +297,13 @@ class UI:
         self.txt1.setText("FWHM= " + "{:.2f}  ".format(self.fwhm) + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
         self.updateplot(self.fwhm)
 
-        if (self.cnt % 30 == 0):
+        if (self.cnt % 5 == 2):
             if not (sky is None):
                 p0 = sky.GetRaDec()
-                
-                self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
-
+                try:
+                    self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
+                except:
+                    print("erro")
             self.temp = camera.qc.GetTemperature()
             self.txt3.setText("Temp = " + str(self.temp) + " fps=" + "{:.2f}".format(self.fps))
 
@@ -327,7 +328,7 @@ class UI:
  
         if (self.auto_level):
             vmin = np.percentile(self.array, 3)
-            vmax = np.percentile(self.array,93)
+            vmax = np.percentile(self.array,96)
             self.imv.setLevels(vmin, vmax)
             self.auto_level = False
 
@@ -432,7 +433,7 @@ if __name__ == "__main__":
 
 
     ipc.set_val("bump", [1.1,1.1])
-    camera = qhy_cam(-10, args.exp, args.gain, args.crop, args.cam)
+    camera = qhy_cam(-15, args.exp, args.gain, args.crop, args.cam)
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
     camera.start()

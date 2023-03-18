@@ -302,7 +302,8 @@ def fit_moffat_elliptical(xy, data):
 from cv2 import medianBlur
 
 def find_high_value_element(array, size = 3):
- 
+  array = array.astype('float32')
+  #print(array.dtype)
   filtered_array = medianBlur(array,3)
 
 
@@ -315,7 +316,6 @@ def find_high_value_element(array, size = 3):
   return col[0], row[0]
 
   
-
 def compute_centroid(array, x, y):
 
 
@@ -332,7 +332,7 @@ def compute_centroid(array, x, y):
   # Compute the centroid using a weighted average
   centroid_row = np.sum(rows * values) / np.sum(values)
   centroid_col = np.sum(cols * values) / np.sum(values)
-  centroid_value = np.mean(values)
+  centroid_value = np.max(values)
 
   return centroid_col + x - 16, centroid_row + y - 16, centroid_value
 

@@ -10,8 +10,8 @@ class qhy_cam:
         self.qc.SetUSB(3)
        
 
-        self.qc.SetOffset(144) #for guider
-        #self.qc.SetOffset(100) #for imager
+        #self.qc.SetOffset(144) #for guider
+        self.qc.SetOffset(60) #for imager
 
         self.qc.SetTemperature(temp)
         self.sizex = int(self.qc.image_size_x * crop)
