@@ -10,15 +10,7 @@ from sys import platform
 import sys
 import cv2
 
-"""
-Basic functions to control qhyccd camera
 
-| Version | Commit
-| 0.1     | initial version @2020/07/02 hf
-
-#TODO: fail to change steammode inside sdk
-"""
-800
 class qhyccd():
     def __init__(self, cam_name):
         # create sdk handle
@@ -103,7 +95,7 @@ class qhyccd():
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)
         # Maximum fan speed
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(255))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(0))
         self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
         #self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
 
