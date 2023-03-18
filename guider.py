@@ -22,7 +22,9 @@ class guider:
         self.center_y = 0
         self.cheat_move_x = 0.0
         self.cheat_move_y = 0.0
-
+        self.mount_cal_state = 0
+        self.ao_cal_state = 0
+        self.guide_state_ao = 0
         N = 2
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
@@ -30,10 +32,6 @@ class guider:
 
 
     def fbump_ao(self, dx, dy):
-
-        self.cheat_move_x += dx / 50.0
-        self.cheat_move_y += dy / 50.0
-
         self.ao.goto(round(dx), round(dy))
 
 
@@ -143,42 +141,44 @@ class guider:
     def calibrate_ao(self):
         self.ao_cal_state = 40
         self.guide_state_ao = 0
+        print("Calibrate AO !!")
 
     def guide(self):
         self.guide_state_mount = 1
 
 
     def handle_calibrate_ao(self, x, y):
-        N = 80
-        if (self.mount_cal_state == 40):
+        N = 180
+        print("handle cal pos", x, y,)
+        if (self.ao_cal_state == 40):
             self.ao_pos_x0 = x
             self.ao_pos_y0 = y
             self.fbump_ao(-N, 0)
             log.info("Move Left")
 
-        if (self.mount_cal_state == 30):
+        if (self.ao_cal_state == 30):
             self.ao_pos_x1 = x
             self.ao_pos_y1 = y
             self.fbump_ao(N, 0)
             log.info("Move Right")
 
 
-        if (self.mount_cal_state == 20):
+        if (self.ao_cal_state == 20):
             self.ao_pos_x2 = x
             self.ao_pos_y2 = y
             self.fbump_ao(0, -N)
             log.info("Move Up")
 
 
-        if (self.mount_cal_state == 10):
+        if (self.ao_cal_state == 10):
             self.ao_pos_x3 = x
             self.ao_pos_y3 = y
             self.fbump_ao(0, N)
             log.info("Move Down")
 
 
-        if (self.mount_cal_state == 1):
-            self.calc_calibration_mount()
+        if (self.ao_cal_state == 1):
+            self.calc_calibration_ao()
 
         self.ao_cal_state = self.ao_cal_state - 1
         if (self.ao_cal_state < 0):
@@ -316,12 +316,14 @@ class guider:
         
     def pos_handler(self, x, y):
         log.info("handler %f %f", x, y)
-        if self.mount_cal_state != 0:
-            self.handle_calibrate_mount(x, y)
+        print("handler", self.ao_cal_state)
+        if self.ao_cal_state != 0:
+            print("handle ", x, y)
+            self.handle_calibrate_ao(x, y)
 
 
-        if self.guide_state_mount != 0:
-            self.handle_guide_mount(x, y)
+        if self.guide_state_ao != 0:
+            self.handle_guide_ao(x, y)
 
             
     def error_to_tx_mount(self, mx, my):
