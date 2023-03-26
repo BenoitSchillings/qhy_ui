@@ -30,6 +30,8 @@ class ao:
         self.send_command("#g" + str(x) + " " + str(y))
 
 
+
+
     def zero(self):
         self.goto(0,0)
         time.sleep(0.3)
@@ -49,7 +51,7 @@ class ao:
         self.send_command("#s")
 
     def write_s(self, cmd):
-    	print(cmd)
+    	#print(cmd)
     	self.ser.write(cmd)
 
     def send_command(self, command):

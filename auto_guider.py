@@ -395,7 +395,8 @@ class UI:
         if (bump[0] != 0.0 and bump[1] != 0):
             return
 
-        self.guider.offset(bump[0], bump[1])
+        #self.guider.offset(bump[0], bump[1])
+        self.guider.reset_ao()
         ipc.set_val("bump", [0,0])
 
     def mainloop(self, args, camera):
@@ -421,9 +422,9 @@ class UI:
                 self.array = result
 
                 max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
-                log.info("max value = %d %d", max_x, max_y)
+                #log.info("max value = %d %d", max_x, max_y)
                 self.cy, self.cx, cv = compute_centroid(self.array, max_y + 32, max_x + 32)
-                log.info("calc centroid = %f %f", self.cx, self.cy)
+                #log.info("calc centroid = %f %f", self.cx, self.cy)
                 #self.cx = 0
                 #self.cy = 0
                 #self.ipc_check()

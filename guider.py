@@ -40,6 +40,11 @@ class guider:
 
         self.ao.move(round(dx), round(dy))
 
+    def reset_ao(self):
+        self.fbump_ao(0,0)
+        time.sleep(0.3)
+        self.guide_inited_ao = -5
+
 
     def fbump_mount(self, dx, dy):
 
@@ -264,17 +269,17 @@ class guider:
 
 
     def handle_guide_ao(self, x, y):
-        if (self.guide_inited_ao == 0):
+        if (self.guide_inited_ao <= 0):
             self.center_x = x
             self.center_y = y
-            self.guide_inited_ao = 1
+            self.guide_inited_ao = self.guide_inited_ao + 1
         else:
             dx = x - self.center_x
             dy = y - self.center_y
 
             #ipc.set_val("guide_error", [dx,dy])
             self.dis = self.distance(dx,dy)
-            print("dist ", self.dis)
+            
             if (self.dis > 50.0):
                 return
 
@@ -284,8 +289,8 @@ class guider:
             tx = 1.0*self.error_to_tx_ao(dx, dy)
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
-            log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
-            self.fmove_ao(80.0*-tx, -80.0*ty)
+            log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
+            self.fmove_ao(80.0*-tx, 80.0*-ty)
             #self.mount(bump, tx, ty)
 
 

@@ -244,7 +244,7 @@ class UI:
             fits.writeto(fn, buffer, hdr, overwrite=True)
 
 
-        if (self.cnt % 5 == 1):
+        if (self.cnt % 2 == 1):
             ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
             print("RND")
 
