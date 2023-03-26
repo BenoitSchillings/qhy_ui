@@ -365,7 +365,7 @@ class UI:
             time.sleep(0.02)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                sky.rate(rx * 4.0, ry * 4.0)
+                sky.rate(ry * 4.0, rx * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
             
             

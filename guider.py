@@ -25,6 +25,7 @@ class guider:
         self.mount_cal_state = 0
         self.ao_cal_state = 0
         self.guide_state_ao = 0
+        self.guide_inited_ao = 0
         N = 2
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
@@ -33,6 +34,11 @@ class guider:
 
     def fbump_ao(self, dx, dy):
         self.ao.goto(round(dx), round(dy))
+
+    def fmove_ao(self, dx, dy):
+
+
+        self.ao.move(round(dx), round(dy))
 
 
     def fbump_mount(self, dx, dy):
@@ -153,27 +159,27 @@ class guider:
         if (self.ao_cal_state == 40):
             self.ao_pos_x0 = x
             self.ao_pos_y0 = y
-            self.fbump_ao(-N, 0)
+            self.fbump_ao(N, 0)
             log.info("Move Left")
 
         if (self.ao_cal_state == 30):
             self.ao_pos_x1 = x
             self.ao_pos_y1 = y
-            self.fbump_ao(N, 0)
+            self.fbump_ao(0, 0)
             log.info("Move Right")
 
 
         if (self.ao_cal_state == 20):
             self.ao_pos_x2 = x
             self.ao_pos_y2 = y
-            self.fbump_ao(0, -N)
+            self.fbump_ao(0, N)
             log.info("Move Up")
 
 
         if (self.ao_cal_state == 10):
             self.ao_pos_x3 = x
             self.ao_pos_y3 = y
-            self.fbump_ao(0, N)
+            self.fbump_ao(0, 0)
             log.info("Move Down")
 
 
@@ -240,6 +246,7 @@ class guider:
         self.ao_dy2 = self.ao_pos_y3 - self.ao_pos_y2
 
         self.save_state("guide.data")
+        self.guide_state_ao = 1
 
 
     def mount_calibrate_state(self):
@@ -267,17 +274,18 @@ class guider:
 
             #ipc.set_val("guide_error", [dx,dy])
             self.dis = self.distance(dx,dy)
-
+            print("dist ", self.dis)
             if (self.dis > 50.0):
                 return
 
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
 
-
+            tx = 1.0*self.error_to_tx_ao(dx, dy)
+            ty = 1.0*self.error_to_ty_ao(dx, dy)
 
             log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
-            self.fbump_ao(tx, ty)
+            self.fmove_ao(80.0*-tx, -80.0*ty)
             #self.mount(bump, tx, ty)
 
 
@@ -321,6 +329,7 @@ class guider:
             print("handle ", x, y)
             self.handle_calibrate_ao(x, y)
 
+        print("guide_ao = ", self.guide_state_ao)
 
         if self.guide_state_ao != 0:
             self.handle_guide_ao(x, y)
