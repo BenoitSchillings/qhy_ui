@@ -4,6 +4,7 @@ import logging as log
 from util import *
 import pickle
 from ao import ao
+import time
 
 
 
@@ -22,26 +23,34 @@ class guider:
         self.center_y = 0
         self.cheat_move_x = 0.0
         self.cheat_move_y = 0.0
-        self.mount_cal_state = 0
-        self.ao_cal_state = 0
-        self.guide_state_ao = 0
+        self.mount_cal_state_count = 0
+        self.ao_cal_state_count = 0
+        self.ao_calibrated = 0
         self.guide_inited_ao = 0
         N = 2
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
         self.load_state("guide.data")
+        self.last_ao_move_time = self.current_milli_time()
+
+
+    def current_milli_time(self):
+        return time.time() * 1000.0
+
 
 
     def fbump_ao(self, dx, dy):
         self.ao.goto(round(dx), round(dy))
+        self.last_ao_move_time = self.current_milli_time()
 
     def fmove_ao(self, dx, dy):
-
-
         self.ao.move(round(dx), round(dy))
+        if (fabs(dx) > 1 or fabs(dy) > 1):
+            self.last_ao_move_time = self.current_milli_time()
 
     def reset_ao(self):
         self.fbump_ao(0,0)
+        self.last_ao_move_time = self.current_milli_time()
         time.sleep(0.3)
         self.guide_inited_ao = -5
 
@@ -134,7 +143,7 @@ class guider:
         self.ao_dy2 = 0
 
 
-        self.guide_state_mount = 0
+        self.guiding_with_mount = 0
         self.cal_state_mount = 0
 
 
@@ -146,91 +155,91 @@ class guider:
         log.info("set pos %d %d", x, y)
 
     def calibrate_mount(self):
-        self.mount_cal_state = 40
-        self.guide_state_mount = 0
+        self.mount_cal_state_count = 40
+        self.guiding_with_mount = 0
 
     def calibrate_ao(self):
-        self.ao_cal_state = 40
-        self.guide_state_ao = 0
+        self.ao_cal_state_count = 40
+        self.ao_calibrated = 0
         print("Calibrate AO !!")
 
     def guide(self):
-        self.guide_state_mount = 1
+        self.guiding_with_mount = 1
 
 
     def handle_calibrate_ao(self, x, y):
         N = 180
         print("handle cal pos", x, y,)
-        if (self.ao_cal_state == 40):
+        if (self.ao_cal_state_count == 40):
             self.ao_pos_x0 = x
             self.ao_pos_y0 = y
             self.fbump_ao(N, 0)
             log.info("Move Left")
 
-        if (self.ao_cal_state == 30):
+        if (self.ao_cal_state_count == 30):
             self.ao_pos_x1 = x
             self.ao_pos_y1 = y
             self.fbump_ao(0, 0)
             log.info("Move Right")
 
 
-        if (self.ao_cal_state == 20):
+        if (self.ao_cal_state_count == 20):
             self.ao_pos_x2 = x
             self.ao_pos_y2 = y
             self.fbump_ao(0, N)
             log.info("Move Up")
 
 
-        if (self.ao_cal_state == 10):
+        if (self.ao_cal_state_count == 10):
             self.ao_pos_x3 = x
             self.ao_pos_y3 = y
             self.fbump_ao(0, 0)
             log.info("Move Down")
 
 
-        if (self.ao_cal_state == 1):
+        if (self.ao_cal_state_count == 1):
             self.calc_calibration_ao()
 
-        self.ao_cal_state = self.ao_cal_state - 1
-        if (self.ao_cal_state < 0):
-            self.ao_cal_state = 0
+        self.ao_cal_state_count = self.ao_cal_state_count - 1
+        if (self.ao_cal_state_count < 0):
+            self.ao_cal_state_count = 0
 
 
     def handle_calibrate_mount(self, x, y):
         N = 1500
-        if (self.mount_cal_state == 40):
+        if (self.mount_cal_state_count == 40):
             self.mount_pos_x0 = x
             self.mount_pos_y0 = y
             self.fbump_mount(-N, 0.0001)
             log.info("Move Left")
 
-        if (self.mount_cal_state == 30):
+        if (self.mount_cal_state_count == 30):
             self.mount_pos_x1 = x
             self.mount_pos_y1 = y
             self.fbump_mount(N, 0.0001)
             log.info("Move Right")
 
 
-        if (self.mount_cal_state == 20):
+        if (self.mount_cal_state_count == 20):
             self.mount_pos_x2 = x
             self.mount_pos_y2 = y
             self.fbump_mount(0.0001, -N)
             log.info("Move Up")
 
 
-        if (self.mount_cal_state == 10):
+        if (self.mount_cal_state_count == 10):
             self.mount_pos_x3 = x
             self.mount_pos_y3 = y
             self.fbump_mount(0.0001, N)
             log.info("Move Down")
 
 
-        if (self.mount_cal_state == 1):
+        if (self.mount_cal_state_count == 1):
             self.calc_calibration_mount()
 
-        self.mount_cal_state = self.mount_cal_state - 1
-        if (self.mount_cal_state < 0):
-            self.mount_cal_state = 0
+        self.mount_cal_state_count = self.mount_cal_state_count - 1
+        if (self.mount_cal_state_count < 0):
+            self.mount_cal_state_count = 0
 
     def calc_calibration_mount(self):
         log.info("calc cal mount")
@@ -251,11 +260,11 @@ class guider:
         self.ao_dy2 = self.ao_pos_y3 - self.ao_pos_y2
 
         self.save_state("guide.data")
-        self.guide_state_ao = 1
+        self.ao_calibrated = 1
 
 
     def mount_calibrate_state(self):
-        return mount_cal_state
+        return mount_cal_state_count
 
     def distance(self, x, y):
         return np.sqrt(x*x+y*y)
@@ -329,14 +338,14 @@ class guider:
         
     def pos_handler(self, x, y):
         log.info("handler %f %f", x, y)
-        print("handler", self.ao_cal_state)
-        if self.ao_cal_state != 0:
+        print("handler", self.ao_cal_state_count)
+        if self.ao_cal_state_count != 0:
             print("handle ", x, y)
             self.handle_calibrate_ao(x, y)
 
-        print("guide_ao = ", self.guide_state_ao)
+        print("guide_ao = ", self.ao_calibrated)
 
-        if self.guide_state_ao != 0:
+        if self.ao_calibrated != 0:
             self.handle_guide_ao(x, y)
 
             
