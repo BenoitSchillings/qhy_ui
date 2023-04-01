@@ -22,7 +22,7 @@ class qhy_cam:
         ddx = ddx // 2
         ddy = ddy // 2
 
-        self.qc.SetROI(ddx,ddy,ddx + self.sizex,ddy + self.sizey)
+        self.qc.SetROI(ddx,ddy, self.sizex, self.sizey)
         self.qc.SetExposure(self.dt*1000)
        
         self.qc.SetGain(gain)

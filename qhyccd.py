@@ -64,9 +64,9 @@ class qhyccd():
         self.name = self.id.value
         self.cam = self.sdk.OpenQHYCCD(self.id)
         self.sdk.StopQHYCCDLive(self.cam)   #here
-        print(self.GetModeName(1))
+        print(self.GetModeName(0))
  
-        self.sdk.SetQHYCCDReadMode(self.cam, 1)
+        self.sdk.SetQHYCCDReadMode(self.cam, 3)
         self.sdk.SetQHYCCDStreamMode(self.cam, 0)  
         self.sdk.InitQHYCCD(self.cam)
 
@@ -90,7 +90,7 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(11))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(2))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)

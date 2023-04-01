@@ -43,7 +43,7 @@ class ao:
 
         self.px = self.px + x
         self.py = self.py + y
-
+        print("Move," + str(self.px) + "," + str(self.py))
         self.send_command("#g" + str(self.px) + " " + str(self.py))
 
 
@@ -55,7 +55,7 @@ class ao:
     	self.ser.write(cmd)
 
     def send_command(self, command):
-        log.info("ao %s", command)
+        #log.info("ao %s", command)
         command = command + "\n"
 
         self.write_s(bytes(command, encoding = 'ascii'))

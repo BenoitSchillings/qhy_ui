@@ -45,7 +45,7 @@ class guider:
 
     def fmove_ao(self, dx, dy):
         self.ao.move(round(dx), round(dy))
-        if (fabs(dx) > 1 or fabs(dy) > 1):
+        if (np.abs(dx) > 1 or np.abs(dy) > 1):
             self.last_ao_move_time = self.current_milli_time()
 
     def reset_ao(self):
@@ -167,6 +167,44 @@ class guider:
         self.guiding_with_mount = 1
 
 
+    def handle_calibrate_aox(self, x, y):
+        N1 = 15
+        print("handle cal pos", x, y,self.ao_cal_state_count)
+        if (self.ao_cal_state_count%4 == 0):
+            self.ao_pos_x0 = x
+            self.ao_pos_y0 = y
+            self.fbump_ao(N1, 0)
+            log.info("Move Left")
+
+        if (self.ao_cal_state_count%4 == 1):
+            self.ao_pos_x1 = x
+            self.ao_pos_y1 = y
+            self.fbump_ao(0, 0)
+            log.info("Move Right")
+
+
+        if (self.ao_cal_state_count%4 == 2):
+            self.ao_pos_x2 = x
+            self.ao_pos_y2 = y
+            self.fbump_ao(0, N1)
+            log.info("Move Up")
+
+
+        if (self.ao_cal_state_count%4 == 3):
+            self.ao_pos_x3 = x
+            self.ao_pos_y3 = y
+            self.fbump_ao(0, 0)
+            log.info("Move Down")
+
+
+        if (self.ao_cal_state_count == 1):
+            self.calc_calibration_ao()
+
+        self.ao_cal_state_count = self.ao_cal_state_count - 1
+        if (self.ao_cal_state_count < 0):
+            self.ao_cal_state_count = 0
+
+
     def handle_calibrate_ao(self, x, y):
         N = 180
         print("handle cal pos", x, y,)
@@ -203,6 +241,7 @@ class guider:
         self.ao_cal_state_count = self.ao_cal_state_count - 1
         if (self.ao_cal_state_count < 0):
             self.ao_cal_state_count = 0
+
 
 
     def handle_calibrate_mount(self, x, y):
@@ -298,8 +337,8 @@ class guider:
             tx = 1.0*self.error_to_tx_ao(dx, dy)
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
-            log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(80.0*-tx, 80.0*-ty)
+            #log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
+            self.fmove_ao(90.0*-tx, 90.0*-ty)
             #self.mount(bump, tx, ty)
 
 
@@ -337,13 +376,13 @@ class guider:
 
         
     def pos_handler(self, x, y):
-        log.info("handler %f %f", x, y)
-        print("handler", self.ao_cal_state_count)
+        #log.info("handler %f %f", x, y)
+        #print("handler", self.ao_cal_state_count)
         if self.ao_cal_state_count != 0:
             print("handle ", x, y)
             self.handle_calibrate_ao(x, y)
 
-        print("guide_ao = ", self.ao_calibrated)
+        #print("guide_ao = ", self.ao_calibrated)
 
         if self.ao_calibrated != 0:
             self.handle_guide_ao(x, y)

@@ -392,9 +392,9 @@ class UI:
     def ipc_check(self):
         bump = ipc.get_val("bump")
 
-        if (bump[0] != 0.0 and bump[1] != 0):
+        if (bump[0] == 0.0 and bump[1] == 0):
             return
-
+        print("GOT BUMP")
         #self.guider.offset(bump[0], bump[1])
         self.guider.reset_ao()
         ipc.set_val("bump", [0,0])
@@ -427,7 +427,7 @@ class UI:
                 #log.info("calc centroid = %f %f", self.cx, self.cy)
                 #self.cx = 0
                 #self.cy = 0
-                #self.ipc_check()
+                self.ipc_check()
 
 
                 self.guider.pos_handler(self.cx, self.cy)
