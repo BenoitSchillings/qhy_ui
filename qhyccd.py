@@ -64,9 +64,9 @@ class qhyccd():
         self.name = self.id.value
         self.cam = self.sdk.OpenQHYCCD(self.id)
         self.sdk.StopQHYCCDLive(self.cam)   #here
-        print(self.GetModeName(0))
+        print(self.GetModeName(1))
  
-        self.sdk.SetQHYCCDReadMode(self.cam, 3)
+        self.sdk.SetQHYCCDReadMode(self.cam, 1)
         self.sdk.SetQHYCCDStreamMode(self.cam, 0)  
         self.sdk.InitQHYCCD(self.cam)
 

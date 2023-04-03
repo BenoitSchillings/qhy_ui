@@ -12,7 +12,7 @@ class ao:
         print("open")
         self.px = 0
         self.py = 0
-        self.ser = serial.Serial('/dev/ttyACM0', 115200,timeout=0.1)
+        self.ser = serial.Serial('/dev/ttyACM0', 115200,timeout=0.01)
         print(self.ser.name)
         time.sleep(2)
 
@@ -47,6 +47,7 @@ class ao:
         self.send_command("#g" + str(self.px) + " " + str(self.py))
 
 
+
     def save(self):
         self.send_command("#s")
 
@@ -60,6 +61,8 @@ class ao:
 
         self.write_s(bytes(command, encoding = 'ascii'))
         self.ser.flush()
+        data = self.ser.read(self.ser.in_waiting)
+        print(data)
         time.sleep(0.003)
 
 
