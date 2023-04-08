@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QMenu, QMenuBar, QAction
 import os
 import qhyccd
 from astropy.io import fits
-
+self.px
 from util import *
 import datetime
 import random
@@ -203,6 +203,8 @@ class UI:
 
         self.plt = pg.plot(title='dx')
         self.plt_bufsize = 100
+        self.ccx = 0
+        self.ccy = 0
         self.x1 = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
         self.y1 = np.zeros(self.plt_bufsize, dtype=np.float64)
         self.databufferx = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
@@ -339,7 +341,7 @@ class UI:
 
     def update_status(self):
         self.txt1.setText("FWHM= " + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
-        self.updateplot(self.cx, self.cy)
+        self.updateplot(self.ccx, self.ccy)
 
         if (self.cnt % 30 == 0):
             if not (sky is None):
@@ -363,7 +365,7 @@ class UI:
             self.auto_level = False
 
 
-        self.txt4.setText("X="  + "{:.2f}".format(self.cx) + " Y="  + "{:.2f}".format(self.cy) + " gx=" + "{:.2f}".format(self.guider.gain_x) + " gy=" + "{:.2f}".format(self.guider.gain_y))
+        self.txt4.setText("X="  + "{:.2f}".format(self.ccx) + " Y="  + "{:.2f}".format(self.ccy) + " gx=" + "{:.2f}".format(self.guider.gain_x) + " gy=" + "{:.2f}".format(self.guider.gain_y))
 
         
         pos = self.clip(self.pos)
@@ -430,7 +432,10 @@ class UI:
                 self.ipc_check()
 
 
-                self.guider.pos_handler(self.cx, self.cy)
+                ddx, ddy = self.guider.pos_handler(self.cx, self.cy)
+                self.ccx = ddx
+                self.ccy = ddy
+
                 self.idx = self.idx + 1
                 self.t1 = time.perf_counter()
                 #rand_move()

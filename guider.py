@@ -341,6 +341,8 @@ class guider:
             self.fmove_ao(90.0*-tx, 90.0*-ty)
             #self.mount(bump, tx, ty)
 
+            return dx, dy
+
 
 
     def handle_guide_mount(self, x, y):
@@ -385,7 +387,9 @@ class guider:
         #print("guide_ao = ", self.ao_calibrated)
 
         if self.ao_calibrated != 0:
-            self.handle_guide_ao(x, y)
+            return self.handle_guide_ao(x, y)
+
+        return 0,0
 
             
     def error_to_tx_mount(self, mx, my):
