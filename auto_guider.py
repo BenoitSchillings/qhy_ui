@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QMenu, QMenuBar, QAction
 import os
 import qhyccd
 from astropy.io import fits
-self.px
+
 from util import *
 import datetime
 import random
@@ -432,7 +432,10 @@ class UI:
                 self.ipc_check()
 
 
-                ddx, ddy = self.guider.pos_handler(self.cx, self.cy)
+                self.guider.pos_handler(self.cx, self.cy)
+                ddx = 0
+                ddy = 0
+                
                 self.ccx = ddx
                 self.ccy = ddy
 

@@ -50,7 +50,7 @@ class qhyccd():
         self.id = type_char_array_32()
         #self.sdk.SetQHYCCDLogLevel(1)
 
-        for id in range(3):
+        for id in range(5):
             self.sdk.GetQHYCCDId(c_int(id), self.id)    # open the first camera
             name = str(self.id.value)
             if (cam_name in name):

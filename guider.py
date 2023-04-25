@@ -329,7 +329,7 @@ class guider:
             self.dis = self.distance(dx,dy)
             
             if (self.dis > 50.0):
-                return
+                return 0,0
 
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
@@ -338,7 +338,7 @@ class guider:
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
             #log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(90.0*-tx, 90.0*-ty)
+            self.fmove_ao(110.0*-tx, 110.0*-ty)
             #self.mount(bump, tx, ty)
 
             return dx, dy
