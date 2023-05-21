@@ -90,7 +90,7 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(2))
+        #self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(2))
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
         err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
         print("err", err)
@@ -158,7 +158,7 @@ class qhyccd():
         
 
 
-    """ Set camera gain """
+    """ Set camera traffic """
     def SetUSB(self, usbrate):
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(usbrate))
         print("Set usb to", 
@@ -206,18 +206,24 @@ class qhyccd():
 
     """ Exposure and return single frame """
     def GetSingleFrame(self):
+        t0 = time.time()
+        print("ask" , t0)
         if (self.live):
             return GetLiveFrame()
 
         if (self.exposing_done()):
             #print("exposing done")
+            t0 = time.time()
+            print("framea" , t0)
+
             ret = self.sdk.GetQHYCCDSingleFrame(self.cam, byref(self.roi_w), byref(self.roi_h), byref(self.bpp),byref(self.channels), self.imgdata)
-            
+            t0 = time.time()
+            print("frameb" , t0)
             self.sdk.ExpQHYCCDSingleFrame(self.cam)
             self.start_time = time.time()
             return np.asarray(self.imgdata) #.reshape([self.roi_h.value, self.roi_w.value])
 
-        #print("still exposing")
+        print("still exposing")
         return None
 
   

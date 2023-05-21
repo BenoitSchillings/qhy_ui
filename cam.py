@@ -116,8 +116,8 @@ class UI:
         
         self.imv = pg.ImageView()
         self.imv.setImage(self.array)
+        self.imv.getImageItem().setAutoDownsample(active=True)
         
-      
         self.win.setCentralWidget(self.imv)
 
         self.statusBar = QtWidgets.QStatusBar()

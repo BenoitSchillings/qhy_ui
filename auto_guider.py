@@ -417,7 +417,9 @@ class UI:
            
             
             app.processEvents()
-            result = camera.get_frame()
+
+            while(True):
+                result = camera.get_frame()
             #print(result)
 
             if (result is not None):
