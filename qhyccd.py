@@ -19,7 +19,7 @@ class qhyccd():
         self.tmp = CDLL('/usr/local/lib/libopencv_imgproc.so', mode=ctypes.RTLD_GLOBAL)
 
         self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.2.10.10')
-
+        self.live = False
         self.sdk.GetQHYCCDParam.restype = c_double
         self.sdk.OpenQHYCCD.restype = ctypes.POINTER(c_uint32)
         # ref: https://www.qhyccd.com/bbs/index.php?topic=6356.0
@@ -29,7 +29,7 @@ class qhyccd():
         self.connect(self.mode, cam_name)
         self.ClearBuffers()
         self.start_time = 0
-        self.live = False
+        
 
     def GetModeName(self, mode_number):
         mode_char_array_32 = c_char*32
@@ -67,7 +67,8 @@ class qhyccd():
         print(self.GetModeName(1))
  
         self.sdk.SetQHYCCDReadMode(self.cam, 1)
-        self.sdk.SetQHYCCDStreamMode(self.cam, 0)  
+        if (self.live):
+            self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         self.sdk.InitQHYCCD(self.cam)
 
         # Get Camera Parameters
@@ -90,14 +91,19 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        #self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, c_double(2))
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, self.bpp)
-        err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, 0)
+        #self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, 2)
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, (self.bpp))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_SPEED,c_double(20))
+   
+
+
+        err = self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(0))
         print("err", err)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(0))
         self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
-        #self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
+        if (self.live):
+            self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
 
 
     def GetSize(self):
@@ -132,7 +138,7 @@ class qhyccd():
 
     def SetStreamMode(self, mode):
         """ TODO: Unable to change"""
-        self.sdk.CloseQHYCCD(self.cam)
+        #self.sdk.CloseQHYCCD(self.cam)
         self.mode = mode
         self.connect(mode)
 
@@ -207,23 +213,23 @@ class qhyccd():
     """ Exposure and return single frame """
     def GetSingleFrame(self):
         t0 = time.time()
-        print("ask" , t0)
+        #print("ask" , t0)
         if (self.live):
-            return GetLiveFrame()
+            return self.GetLiveFrame()
 
         if (self.exposing_done()):
             #print("exposing done")
             t0 = time.time()
-            print("framea" , t0)
+            #print("framea" , t0)
 
             ret = self.sdk.GetQHYCCDSingleFrame(self.cam, byref(self.roi_w), byref(self.roi_h), byref(self.bpp),byref(self.channels), self.imgdata)
             t0 = time.time()
-            print("frameb" , t0)
+            #print("frameb" , t0)
             self.sdk.ExpQHYCCDSingleFrame(self.cam)
             self.start_time = time.time()
             return np.asarray(self.imgdata) #.reshape([self.roi_h.value, self.roi_w.value])
 
-        print("still exposing")
+        #print("still exposing")
         return None
 
   
@@ -243,6 +249,7 @@ class qhyccd():
         """ Return live image """
         result = self.sdk.GetQHYCCDLiveFrame(self.cam, byref(self.roi_h), byref(self.roi_w), 
                 byref(self.bpp), byref(self.channels), self.imgdata)
+
         if (result < 0):
             return None
         return np.asarray(self.imgdata)

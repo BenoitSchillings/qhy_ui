@@ -63,7 +63,7 @@ class ao:
         self.ser.flush()
         data = self.ser.read(self.ser.in_waiting)
         print(data)
-        time.sleep(0.003)
+        time.sleep(0.005)
 
 
     def close(self):
