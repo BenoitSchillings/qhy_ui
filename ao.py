@@ -12,7 +12,7 @@ class ao:
         print("open")
         self.px = 0
         self.py = 0
-        self.ser = serial.Serial('/dev/ttyACM1', 115200,timeout=0.01)
+        self.ser = serial.Serial('/dev/ttyACM0', 115200,timeout=0.01)
         print(self.ser.name)
         time.sleep(2)
 

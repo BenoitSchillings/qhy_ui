@@ -31,6 +31,7 @@ class guider:
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
         self.load_state("guide.data")
+        #self.ao_calibrated = 1
         self.last_ao_move_time = self.current_milli_time()
 
 
@@ -164,7 +165,9 @@ class guider:
         print("Calibrate AO !!")
 
     def guide(self):
-        self.guiding_with_mount = 1
+        self.is_guiding = 1
+        self.ao_calibrated = 1
+        self.guide_inited_ao = 0
 
 
     def handle_calibrate_aox(self, x, y):
@@ -338,7 +341,7 @@ class guider:
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
             #log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(110.0*-tx, 110.0*-ty)
+            self.fmove_ao(90.0*-tx, 90.0*-ty)
             #self.mount(bump, tx, ty)
 
             return dx, dy

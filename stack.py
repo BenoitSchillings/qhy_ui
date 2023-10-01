@@ -4,7 +4,6 @@ import cv2
 import astropy
 import sys
 from astropy.io import fits
-import image_registration
 from glob import glob
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.filters import median_filter
@@ -26,6 +25,10 @@ def crop_a(img,crop):
     return img[starty:starty+crop, startx:startx+crop]
 
 
+def crop(a):
+	return(a[20:, 20:])
+
+	
 #--------------------------------------------------------
 
 def sharpness(img):
@@ -39,39 +42,105 @@ def bin(a):
 
 
 from astropy.io import fits
-from photutils import DAOStarFinder
+
 from astropy.stats import mad_std
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 
-def find_stars(image_data):
-    bkg_sigma = mad_std(image_data)    # estimate background noise
-    daofind = DAOStarFinder(fwhm=7.0, threshold=8.*bkg_sigma)  
-    sources = daofind(image_data - np.median(image_data))
-    print(sources)
-    return sources
 
-from sklearn.linear_model import RANSACRegressor
+def sigma_reject(arr, sigma_threshold=1.5):
+    """
+    Perform sigma-rejection and averaging on a 3D numpy array.
+    
+    Parameters:
+    arr (numpy.ndarray): The input 3D numpy array of shape (count, size_x, size_y)
+    sigma_threshold (float): The number of standard deviations for rejection criterion.
+    
+    Returns:
+    numpy.ndarray: A 2D numpy array of shape (size_x, size_y)
+    """
+    
+    # Step 1: Calculate the mean and standard deviation for each pixel across the `count` axis
+    mean_values = np.mean(arr, axis=0)
+    std_values = np.std(arr, axis=0)
+    
+    # Step 2: Create a mask where we set True for the elements we want to keep
+    mask = (arr >= mean_values - sigma_threshold * std_values) & (arr <= mean_values + sigma_threshold * std_values)
+    
+    # Step 3: Compute the average, but for each pixel only include values where the mask is True
+    sum_values = np.sum(arr * mask, axis=0)
+    count_values = np.sum(mask, axis=0)
+    
+    # Avoid division by zero by setting zero-count pixels to 1
+    count_values[count_values == 0] = 1
+    
+    avg_values = sum_values / count_values
+    
+    return avg_values
 
-def get_shift(star_list1, star_list2):
-    # We're going to estimate the translation from image 2 to image 1.
-    # So the "independent variable" is the star positions in image 2
-    # and the "dependent variable" is the star positions in image 1.
-    X = np.array([star_list2['xcentroid'], star_list2['ycentroid']]).T
-    y = np.array([star_list1['xcentroid'], star_list1['ycentroid']]).T
+from scipy.optimize import minimize
 
-    # Estimate the translation using RANSAC
-    ransac = RANSACRegressor(residual_threshold=5.0)  # 5 pixel tolerance
-    ransac.fit(X, y)
-    translation = ransac.estimator_.intercept_
 
-    return translation
 
-#--------------------------------------------------------
-import random
+def find_optimal_scaling(array1, dk):
+    def minimize_std(K):
+        # Calculate the difference array
+        diff = array1 - dk * K
+
+        # Calculate the standard deviation of the difference array
+        std = np.std(diff)
+        #print(std)
+        # Return the standard deviation as the optimization target
+        return std
+
+    # Initialize the optimization parameters
+    x0 = [1.0]  # Initial value for K
+    bounds = [(0.0, None)]  # Bounds for K (must be non-negative)
+
+    # Perform the optimization
+    result = minimize(minimize_std, x0, bounds=bounds)
+
+    # Extract the optimized value for K
+    K_opt = result.x[0]
+
+    return K_opt
+
+def best_dark(image, dark):
+	k = find_optimal_scaling(image, dark)
+	print("k is ", str(k))
+	d0 = dark * k 
+
+	delta = np.percentile(dark, 3) - np.percentile(d0, 3)
+
+	d0 = d0 + delta
+
+	image = image - d0
+
+	return image
+
+
+import astroalign as aa
+
+def match(image1, image2):
+	p, (pos_img, pos_img_rot) = aa.find_transform(image2, image1)
+
+	print("Rotation: {:.2f} degrees".format(p.rotation * 180.0 / np.pi))
+	print("\nScale factor: {:.2f}".format(p.scale))
+	print("\nTranslation: (x, y) = ({:.2f}, {:.2f})".format(*p.translation))
+	print("\nTranformation matrix:\n{}".format(p.params))
+
+	for (x1, y1), (x2, y2) in zip(pos_img, pos_img_rot):
+	    print("({:.2f}, {:.2f}) is source --> ({:.2f}, {:.2f}) in target"
+	          .format(x1, y1, x2, y2))
+	
+	img_aligned, footprint = aa.apply_transform(p, image2, image1)
+
+
+	return img_aligned
+
 
 files = args = sys.argv[1:]
-#random.shuffle(files)
+
 print(files)
 
 def fn(idx):
@@ -79,68 +148,50 @@ def fn(idx):
 
 
 frame = 0
-img0 = fits.getdata(fn(0), ext=0)
+img0 = crop(fits.getdata(fn(0), ext=0))
 sum = np.empty_like(img0, dtype=float)
 
-flat = fits.getdata("flat.fits", ext=0).astype(np.float)
-bias = fits.getdata("bias.fits", ext=0).astype(np.float)
-dark = fits.getdata("dark.fits", ext=0).astype(np.float)
+flat = crop(fits.getdata("flat.fits", ext=0).astype(np.float))
+bias = crop(fits.getdata("bias.fits", ext=0).astype(np.float))
+dark = crop(fits.getdata("dark.fits", ext=0).astype(np.float))
 
 flat = flat - bias
 flat = np.clip(flat, 1000, 128000)
-#flat = np.abs(flat) + 0.1
+
 
 print("bias", bias.mean(), bias.min(), bias.max(), bias[0][0])
 print("flat", flat.mean(), flat.min(), flat.max(), flat[0][0])
 print("dark", dark.mean(), dark.min(), dark.max(), dark[0][0])
-#dark = dark - 90
+
 flat = flat / np.mean(flat)
-#dark = dark - bias
 
-img0 = img0 - (1.0*dark)
+
+img0 = best_dark(img0, dark)
+
+
 img0 = img0 / flat
-ref_level = np.percentile(img0, 20)
-list_1 = find_stars(img0)
+ref_level = np.percentile(img0, 3)
 
-img_prop = [('idx', int), ('dx', float), ('dy', float), ('delta', float), ('name', str)]
-images_prop = np.array([], dtype=img_prop) 
+array3d = (np.empty_like(img0))
+array3d = np.expand_dims(array3d, axis=0)
 
 
 for frame in range(0, len(files)):
-	img = fits.getdata(fn(frame), ext=0).astype(np.float)
-	
-	img = img -  (1.0*dark)
-	#print("top ", img[0][0])
+	img = crop(fits.getdata(fn(frame), ext=0).astype(float))
+	ref_level1 = np.percentile(img0, 3)
+	img = img + (ref_level - ref_level1)
+	img = best_dark(img, dark)
+
 	img = img / flat
-	ref_level1 = np.percentile(img, 20)
-	list_2 = find_stars(img)
-	print(get_shift(list_1, list_2))
 
-
-	print("mean ", img.mean())
-	yoff,xoff = image_registration.cross_correlation_shifts(crop_center(img, 3048), crop_center(img0, 3048))
-	#yoff1,xoff1 = image_registration.cross_correlation_shifts(crop_a(img, 2048), crop_a(img0, 2048))
-	print(yoff,xoff)
-	
-	if (np.abs(yoff) < 2100.0 and np.abs(xoff) < 2100.0):
-		shifted = np.roll(np.roll(img,int(round(yoff)),1),int(round(xoff)),0)
-		#shifted = image_registration.fft_tools.shift.shift2d(img, yoff, xoff)
-		#delta = sharpness(crop_center(shifted, 1024))
-		delta = -np.mean(shifted[1000:-1000,1400:-1400] - img0[1000:-1000,1400:-1400])
-		print(delta)
-		
-		element = [(frame, xoff, yoff, -delta, fn(frame))]
-		images_prop = np.append(images_prop, np.array(element, dtype=img_prop))
-
-		#frame = frame + 1
-
+	try:
+		shifted = match(img0, img)
 		sum +=  shifted
-
+		#array3d = np.concatenate([array3d, np.expand_dims(shifted, axis=0)])
+	except:
+		print("ERROR")
+#sum1 = sigma_reject(array3d)
 
 hdr = fits.header.Header()
 fits.writeto("result" + str(time.time()) + ".fits", sum.astype(np.float32), hdr, overwrite=True)
 
-#stack 90 % of frames
-sum = np.empty_like(img0, dtype=float)
-images_prop = np.sort(images_prop, order='delta')
-print(images_prop)

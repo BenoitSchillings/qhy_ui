@@ -7,10 +7,10 @@ class qhy_cam:
         self.gain = gain
         self.qc.GetSize()
         self.qc.SetBit(16)
-        self.qc.SetUSB(1)
+        self.qc.SetUSB(21)
        
 
-        #self.qc.SetOffset(144) #for guider
+        #self.qc.SetOffset(284) #for guider
         self.qc.SetOffset(60) #for imager
 
         self.qc.SetTemperature(temp)
