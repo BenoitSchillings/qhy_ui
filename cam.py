@@ -332,6 +332,16 @@ class UI:
             self.imv.setLevels(vmin, vmax)
             self.auto_level = False
 
+
+# Find the index of the maximum value
+        max_index = np.argmax(self.array)
+
+# Convert the flattened index into a 2D index
+        max_index_2d = np.unravel_index(max_index, self.array.shape)
+        print(max_index_2d)
+        self.pos.setX(max_index_2d[1])
+
+        self.pos.setY(max_index_2d[0])
         pos = self.clip(self.pos)
        
 
@@ -362,7 +372,7 @@ class UI:
     def mainloop(self, args, camera):
 
         while(self.win.quit == 0):
-            time.sleep(0.02)
+            time.sleep(0.01)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 sky.rate(ry * 4.0, rx * 4.0)

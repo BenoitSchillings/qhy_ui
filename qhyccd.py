@@ -50,9 +50,10 @@ class qhyccd():
         self.id = type_char_array_32()
         #self.sdk.SetQHYCCDLogLevel(1)
 
-        for id in range(5):
+        for id in range(29):
             self.sdk.GetQHYCCDId(c_int(id), self.id)    # open the first camera
             name = str(self.id.value)
+            print(name)
             if (cam_name in name):
                 print("FOUND")
                 break
@@ -91,9 +92,9 @@ class qhyccd():
         self.SetExposure( 10)
         self.SetBit(self.bpp.value)
         
-        #self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, 2)
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_USBTRAFFIC, 1)
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_TRANSFERBIT, (self.bpp))
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_SPEED,c_double(20))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_SPEED,c_double(80))
    
 
 
@@ -195,7 +196,8 @@ class qhyccd():
         
         
     def SetDDR(self, value):
-        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(value))
+        return 0
+        #self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(value))
         
         
     """ Set camera ROI """
@@ -214,8 +216,9 @@ class qhyccd():
     def GetSingleFrame(self):
         t0 = time.time()
         #print("ask" , t0)
+        
         if (self.live):
-            return self.GetLiveFrame()
+        return self.GetLiveFrame()
 
         if (self.exposing_done()):
             #print("exposing done")
