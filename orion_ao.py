@@ -344,6 +344,16 @@ class orion_ao:
     def move_ao(self, dx, dy):
         self.set_ao(self.ax + dx, self.ay + dy)
 
+    def goto(self, x, y):
+        self.set_ao(x, y)
+
+    def zero(self):
+        self.goto(0,0)
+        time.sleep(0.3)
+
+    def move(self, x,y):
+        self.move_ao(x, y)
+
 
     def rotate_to_angle(self, angle):
         rotate_to_angle(self.dev, angle)
@@ -358,6 +368,9 @@ class orion_ao:
 
             self.set_ao(int(round(x)), int(round(y)))
             time.sleep(0.01)
+
+    def close(self):
+        print("close ao")
 
 
 if __name__ == "__main__":
