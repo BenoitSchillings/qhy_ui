@@ -366,8 +366,8 @@ class guider:
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
 
-            tx = 3.0*self.error_to_tx_mount(dx, dy)
-            ty = 3.0*self.error_to_ty_mount(dx, dy)
+            tx = 1.0*self.error_to_tx_mount(dx, dy)
+            ty = 1.0*self.error_to_ty_mount(dx, dy)
 
             log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
             self.fbump_mount(tx, ty)
@@ -381,8 +381,11 @@ class guider:
 
         
     def pos_handler(self, x, y):
-        #log.info("handler %f %f", x, y)
-        #print("handler", self.ao_cal_state_count)
+        if (self.mount_cal_state_count != 0):
+            print("handle mount ", x, y)
+            self.handle_calibrate_mount(x , y)
+
+
         if self.ao_cal_state_count != 0:
             print("handle ", x, y)
             self.handle_calibrate_ao(x, y)
