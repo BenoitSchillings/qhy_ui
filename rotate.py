@@ -17,6 +17,6 @@ except ValueError:
     sys.exit(1)
 
 
-ao = orion_ao()
+ao = ao()
 
 ao.rotate_to_angle(number1)
