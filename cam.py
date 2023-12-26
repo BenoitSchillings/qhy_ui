@@ -96,7 +96,7 @@ class UI:
     def __init__(self,  args, sx, sy, count, auto, fits):
         self.sx = sx
         self.sy = sy
-        self.t0 = time.perf_counter()
+        
         self.idx = 0
         self.fits = fits
         self.capture_state = 0
@@ -351,7 +351,7 @@ class UI:
         self.max = np.max(sub)
 
         if possible_star(sub):
-            self.fwhm = fit_gauss_circular(sub)
+            self.fwhm = 5.0 #fit_gauss_circular(sub)
         else:
             self.fwhm = 5.0
 
@@ -370,9 +370,9 @@ class UI:
 
 
     def mainloop(self, args, camera):
-
+        self.t0 = time.perf_counter()
         while(self.win.quit == 0):
-            time.sleep(0.01)
+            time.sleep(0.003)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 sky.rate(ry * 4.0, rx * 4.0)
@@ -401,7 +401,7 @@ class UI:
                 self.t1 = time.perf_counter()
 
                 self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
-                
+                print(self.fps)
                 need_update = False
                 if (self.update_state == 1):
                     need_update = True
@@ -444,7 +444,7 @@ if __name__ == "__main__":
 
     ipc.set_val("bump", [1.1,1.1])
 
-    camera = qhy_cam(-15, args.exp, args.gain, args.crop, args.cam)
+    camera = qhy_cam(-15, args.exp, args.gain, args.crop, args.cam, False)
 
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     

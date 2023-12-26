@@ -12,14 +12,14 @@ import cv2
 
 
 class qhyccd():
-    def __init__(self, cam_name):
+    def __init__(self, cam_name, live_mode=False):
         # create sdk handle
         #self.sdk= CDLL()
         self.tmp = CDLL('/usr/local/lib/libopencv_core.so', mode=ctypes.RTLD_GLOBAL)
         self.tmp = CDLL('/usr/local/lib/libopencv_imgproc.so', mode=ctypes.RTLD_GLOBAL)
 
         self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.2.10.10')
-        self.live = False
+        self.live = live_mode 
         self.sdk.GetQHYCCDParam.restype = c_double
         self.sdk.OpenQHYCCD.restype = ctypes.POINTER(c_uint32)
         # ref: https://www.qhyccd.com/bbs/index.php?topic=6356.0
@@ -102,7 +102,8 @@ class qhyccd():
         print("err", err)
         # Maximum fan speed
         self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_MANULPWM, c_double(0))
-        self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
+        cancel = self.sdk.CancelQHYCCDExposingAndReadout(self.cam)
+        print("cancel ", cancel)
         if (self.live):
             self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
 
@@ -196,8 +197,7 @@ class qhyccd():
         
         
     def SetDDR(self, value):
-        return 0
-        #self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(value))
+        self.sdk.SetQHYCCDParam(self.cam, CONTROL_ID.CONTROL_DDR, c_double(value))
         
         
     """ Set camera ROI """
@@ -218,7 +218,7 @@ class qhyccd():
         #print("ask" , t0)
         
         if (self.live):
-        return self.GetLiveFrame()
+            return self.GetLiveFrame()
 
         if (self.exposing_done()):
             #print("exposing done")

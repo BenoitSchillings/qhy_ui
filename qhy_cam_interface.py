@@ -1,13 +1,13 @@
 import qhyccd
 
 class qhy_cam:
-    def __init__(self, temp, exp, gain, crop, cam_name):
-        self.qc = qhyccd.qhyccd(cam_name)
+    def __init__(self, temp, exp, gain, crop, cam_name, live=False):
+        self.qc = qhyccd.qhyccd(cam_name, live)
         self.dt = exp
         self.gain = gain
         self.qc.GetSize()
         self.qc.SetBit(16)
-        self.qc.SetUSB(21)
+        self.qc.SetUSB(1)
        
 
         #self.qc.SetOffset(284) #for guider
