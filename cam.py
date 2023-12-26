@@ -338,7 +338,7 @@ class UI:
 
 # Convert the flattened index into a 2D index
         max_index_2d = np.unravel_index(max_index, self.array.shape)
-        print(max_index_2d)
+        #print(max_index_2d)
         self.pos.setX(max_index_2d[1])
 
         self.pos.setY(max_index_2d[0])
@@ -401,7 +401,7 @@ class UI:
                 self.t1 = time.perf_counter()
 
                 self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
-                print(self.fps)
+                #print(self.fps)
                 need_update = False
                 if (self.update_state == 1):
                     need_update = True

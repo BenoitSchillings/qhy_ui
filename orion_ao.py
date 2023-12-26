@@ -232,7 +232,7 @@ def home(dev):
 
 
 
-class orion_ao:
+class ao:
     def __init__(self):
         self.do_init()
 
