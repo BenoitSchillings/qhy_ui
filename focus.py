@@ -20,5 +20,5 @@ except ValueError:
 foc = focuser()
 
 print(foc.status())
-foc.move_focus(number1)
+foc.move_to(number1)
 print(foc.get_pos())

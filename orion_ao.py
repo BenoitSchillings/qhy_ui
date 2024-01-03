@@ -67,7 +67,7 @@ def rotate_to_angle(dev, angle):
 
 
 
-    for i in range(1110):
+    for i in range(100):
         interruptWrite(dev, 0x02, hex_string_to_formatted_binary_array("6875f90538db760b"))
         result = interruptRead(dev, 0x81, 8)
         print(result.hex())
