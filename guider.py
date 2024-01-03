@@ -441,8 +441,10 @@ class guider:
         return mx, my
 
     def calc_bump(self, tx, ty):
+        bump_scaler = 0.5
+
         mx, my = self.compute_mx_my(tx, ty)
-        bump_x = self.error_to_tx_mount(mx, my)
-        bump_y = self.error_to_ty_mount(mx, my)
+        bump_x = self.error_to_tx_mount(mx, my) * bump_scaler
+        bump_y = self.error_to_ty_mount(mx, my) * bump_scaler
 
         return bump_x, bump_y
