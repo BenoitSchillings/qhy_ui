@@ -340,6 +340,8 @@ class ao:
         self.set_motors(m1, m2, m3, m4)
         self.ax, self.ay = self.motor_to_xy(self.m1, self.m2, self.m3, self.m4) 
 
+    def get_ao(self):
+        return self.ax, self.ay
 
     def move_ao(self, dx, dy):
         self.set_ao(self.ax + dx, self.ay + dy)

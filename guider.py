@@ -49,12 +49,22 @@ class guider:
         if (np.abs(dx) > 1 or np.abs(dy) > 1):
             self.last_ao_move_time = self.current_milli_time()
 
+
+
+        ax, ay = self.ao.get_ao()
+
+        if (fabs(ax) > 80 or fabs(ay) > 80):
+            self.need_bump(ax, ay)
+
     def reset_ao(self):
         self.fbump_ao(0,0)
         self.last_ao_move_time = self.current_milli_time()
         time.sleep(0.3)
         self.guide_inited_ao = -5
 
+    def need_bump(self, ax, ay):
+        bx, by = self.calc_bump(ax, ay)
+        self.fbump_mount(bx, by)
 
     def fbump_mount(self, dx, dy):
 
@@ -209,7 +219,7 @@ class guider:
 
 
     def handle_calibrate_ao(self, x, y):
-        N = 180
+        N = 120
         print("handle cal pos", x, y,)
         if (self.ao_cal_state_count == 40):
             self.ao_pos_x0 = x
@@ -423,3 +433,16 @@ class guider:
 
         return num / den
 
+
+    def compute_mx_my(self, tx, ty):
+        my = self.ao_dy1 * ty + self.ao_dy2 * ty
+        mx = self.ao_dx1 * tx + self.ao_dx2 * tx
+
+        return mx, my
+
+    def calc_bump(self, tx, ty):
+        mx, my = self.compute_mx_my(tx, ty)
+        bump_x = self.error_to_tx_mount(mx, my)
+        bump_y = self.error_to_ty_mount(mx, my)
+
+        return bump_x, bump_y
