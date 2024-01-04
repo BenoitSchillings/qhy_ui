@@ -107,18 +107,28 @@ class focuser:
         self.dev = open_dev(vid_want, pid_want, self.usbcontext)
         self.dev.claimInterface(0)
         self.dev.resetDevice()
-        self.pos = 0
+        self.load()
+
+
+    def save(self):
+        with open('focus_pos.txt', 'w') as file:
+            file.write(str(self.pos))
+
+    def load(self):
+        with open('focus_pos.txt', 'r') as file:
+            self.pos = int(file.read())
 
 
     def move_focus(self, delta):
         move_stepper_motor(self.dev, delta) 
         self.pos = self.pos + delta
+        self.save()
 
 
     def move_to(self, pos):
         delta = pos - self.pos
         self.move_focus(delta)
-        
+        self.save()
         
     def get_pos(self):
         return fli_getsteppos(self.dev)   
@@ -126,6 +136,7 @@ class focuser:
     def home(self):
         home_stepper_motor(self.dev)
         self.pos = 0
+        self.save()
 
     def status(self):
         return fli_getstepperstatus(self.dev)

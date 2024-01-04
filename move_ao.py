@@ -18,6 +18,6 @@ except ValueError:
     sys.exit(1)
 
 
-ao = orion_ao()
+ao = ao()
 
 ao.set_ao(number1, number2)
