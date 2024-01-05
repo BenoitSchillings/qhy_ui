@@ -60,9 +60,9 @@ def rotate_to_angle(dev, angle):
 
     interruptWrite(dev, 0x02, hex_string_to_formatted_binary_array("672474038fb02795"))
     result = interruptRead(dev, 0x81, 8)
-    print(result.hex())
+    #print(result.hex())
     rot_array = create_byte_array_for_rot(iangle)
-    print(rot_array.hex())
+    #print(rot_array.hex())
     interruptWrite(dev, 0x02,rot_array)
 
 
@@ -96,7 +96,7 @@ def create_byte_array_for_move(dx, dy):
 
 def move_ao(dev, dx, dy):
     mov_array = create_byte_array_for_move(dx, dy)
-    print(mov_array.hex())
+    #print(mov_array.hex())
     interruptWrite(dev, 0x02,mov_array)
 
 
@@ -111,10 +111,10 @@ def move_motors(dev, m1, m2, m3, m4):
     mov_2 = build_motor_move_array(1, m2)
     mov_3 = build_motor_move_array(2, m3)
     mov_4 = build_motor_move_array(3, m4)
-    print((mov_1.hex()))
-    print((mov_2.hex()))
-    print((mov_3.hex()))
-    print((mov_4.hex()))
+    #print((mov_1.hex()))
+    #print((mov_2.hex()))
+    #print((mov_3.hex()))
+    #print((mov_4.hex()))
 
     dt = 0.0
 
