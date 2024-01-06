@@ -19,7 +19,8 @@ class qhyccd():
         self.tmp = CDLL('/usr/local/lib/libopencv_imgproc.so', mode=ctypes.RTLD_GLOBAL)
 
         #self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.2.10.10')
-        self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.1.11.17')
+        #self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.1.11.17')
+        self.sdk= CDLL('/usr/local/lib/libqhyccd.so.23.10.11.13')
         #libqhyccd.so.23.1.11.17
         self.live = live_mode 
         self.sdk.GetQHYCCDParam.restype = c_double
