@@ -376,7 +376,7 @@ class ao:
 
 
 if __name__ == "__main__":
-    ao = orion_ao()
+    ao = ao()
 
     #m1,m2,m3, m4 = ao.xy_to_motor(20, 19)
     #print("cp ", m1,m2,m3,m4)
