@@ -99,7 +99,7 @@ def move_ao(dev, dx, dy):
     #print(mov_array.hex())
     interruptWrite(dev, 0x02,mov_array)
 
-
+import signal
 
 def build_motor_move_array(motor_idx, delta):
   return bytearray([0x61, c2_byte(delta), c2_byte(motor_idx), 0x00, 0xc7, 0xdd, 0x42, 0x1a])
@@ -117,22 +117,28 @@ def move_motors(dev, m1, m2, m3, m4):
     #print((mov_4.hex()))
 
     dt = 0.0
+    original_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        if (m1 != 0):
+            interruptWrite(dev, 0x02,mov_1)
+            #time.sleep(dt)
 
-    if (m1 != 0):
-        interruptWrite(dev, 0x02,mov_1)
-        time.sleep(dt)
+        if (m2 != 0):
+            interruptWrite(dev, 0x02,mov_2)
+            #time.sleep(dt)
 
-    if (m2 != 0):
-        interruptWrite(dev, 0x02,mov_2)
-        time.sleep(dt)
+        if (m3 != 0):    
+            interruptWrite(dev, 0x02,mov_3)
+            #time.sleep(dt)
 
-    if (m3 != 0):    
-        interruptWrite(dev, 0x02,mov_3)
-        time.sleep(dt)
-
-    if (m4 != 0):
-        interruptWrite(dev, 0x02,mov_4)
-        time.sleep(dt)
+        if (m4 != 0):
+            interruptWrite(dev, 0x02,mov_4)
+            #time.sleep(dt)
+    #print("move motor done")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        signal.signal(signal.SIGINT, original_handler)  # Re-enable Ctrl+C
 
 
 def b_2_i(v):
@@ -181,38 +187,38 @@ def get_homing_status(dev):
 
 def home(dev):
     m1, m2, m3, m4 = get_ao_pos(dev)
-    #print("initial pos = ", m1, m2, m3, m4)
+    print("p0 = ", m1, m2, m3, m4)
     move_motors(dev, m1, m2, m3, m4)
     time.sleep(0.2)
     m1, m2, m3, m4 = get_ao_pos(dev)
-    #print("initial pos = ", m1, m2, m3, m4)
+    print("p1 = ", m1, m2, m3, m4)
     status = get_homing_status(dev)
-
+    
     while(status != 0):
         print(hex(status))
         #m1, m2, m3, m4 = get_ao_pos(dev)
-        #print("new pos = ", m1, m2, m3, m4)
+        print("new pos = ", m1, m2, m3, m4)
         if (status & 0x80 != 0):
             move_m4 = -7
         else:
-            move_m4 = 2
+            move_m4 = 3
 
         if (status & 0x40 != 0):
             move_m3 = -7
         else:
-            move_m3 = 2
+            move_m3 = 3
 
         if (status & 0x20 != 0):
             move_m2 = -7
         else:
-            move_m2 = 2
+            move_m2 = 3
 
         if (status & 0x10 != 0):
             move_m1 = -7
         else:
-            move_m1 = 2
+            move_m1 = 3
 
-        #print("new move is ", move_m1, move_m2, move_m3, move_m4)
+        print("new move is ", move_m1, move_m2, move_m3, move_m4)
         move_motors(dev, move_m1, move_m2, move_m3, move_m4)
 
         status = get_homing_status(dev)
@@ -336,6 +342,7 @@ class ao:
 
 
     def set_ao(self, tx, ty):
+        print("set ao ", tx, ty)
         m1, m2, m3, m4 = self.xy_to_motor(tx, ty)
         self.set_motors(m1, m2, m3, m4)
         self.ax, self.ay = self.motor_to_xy(self.m1, self.m2, self.m3, self.m4) 
@@ -347,6 +354,7 @@ class ao:
         self.set_ao(self.ax + dx, self.ay + dy)
 
     def goto(self, x, y):
+        print("goto", x, y)
         self.set_ao(x, y)
 
     def zero(self):
@@ -369,7 +377,7 @@ class ao:
             y = math.cos(alpha) * diameter
 
             self.set_ao(int(round(x)), int(round(y)))
-            time.sleep(0.01)
+            time.sleep(0.1)
 
     def close(self):
         print("close ao")
@@ -377,6 +385,7 @@ class ao:
 
 if __name__ == "__main__":
     ao = ao()
+    ao.home()
 
     #m1,m2,m3, m4 = ao.xy_to_motor(20, 19)
     #print("cp ", m1,m2,m3,m4)
@@ -388,6 +397,6 @@ if __name__ == "__main__":
     #    ao.move_ao(-3, 0)
     #    time.sleep(0.03)
 
-    ao.circle_test(0.01, 10)
+    ao.circle_test(0.01, 50)
 
    

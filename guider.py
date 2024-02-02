@@ -52,8 +52,8 @@ class guider:
 
 
         ax, ay = self.ao.get_ao()
-
-        if (fabs(ax) > 80 or fabs(ay) > 80):
+        print(ax, ay)
+        if (abs(ax) > 80 or abs(ay) > 80):
             self.need_bump(ax, ay)
 
     def reset_ao(self):
@@ -64,13 +64,14 @@ class guider:
 
     def need_bump(self, ax, ay):
         bx, by = self.calc_bump(ax, ay)
-        self.fbump_mount(bx, by)
+        print("bump ", bx, by)
+        self.fbump_mount(-bx, -by)
 
     def fbump_mount(self, dx, dy):
 
-        self.cheat_move_x += dx / 50.0
-        self.cheat_move_y += dy / 50.0
-        print("p0")
+        #self.cheat_move_x += dx / 50.0
+        #self.cheat_move_y += dy / 50.0
+        #print("p0")
         if not (self.mount is None):
             print("p1")
             print(dx, dy)
@@ -78,6 +79,8 @@ class guider:
                 print("job")
                 print("LOG MOVE", dx, dy)
                 self.mount.jog(dx/3600.0,dy/3600.0)
+        else:
+            print("mount is none")
 
     def start_calibrate_mount(self):
         log.info("calibrate")
@@ -133,6 +136,8 @@ class guider:
 
                 self.gain_x = settings['gain_x']
                 self.gain_y = settings['gain_y']
+
+                print(settings)
                
         except Exception as e:
             log.critical("An error occurred while loading the state:", e)
@@ -350,7 +355,7 @@ class guider:
             tx = 1.0*self.error_to_tx_ao(dx, dy)
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
-            #log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
+            log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
             self.fmove_ao(90.0*-tx, 90.0*-ty)
             #self.mount(bump, tx, ty)
 
@@ -400,7 +405,7 @@ class guider:
             print("handle ", x, y)
             self.handle_calibrate_ao(x, y)
 
-        #print("guide_ao = ", self.ao_calibrated)
+        print("guide_ao = ", self.ao_calibrated)
 
         if self.ao_calibrated != 0:
             return self.handle_guide_ao(x, y)
