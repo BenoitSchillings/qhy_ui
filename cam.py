@@ -244,7 +244,7 @@ class UI:
             fits.writeto(fn, buffer, hdr, overwrite=True)
 
 
-        if (self.cnt % 2 == 1):
+        if (self.cnt % 8 == 1):
             ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
             print("RND")
 
@@ -444,7 +444,7 @@ if __name__ == "__main__":
 
     ipc.set_val("bump", [1.1,1.1])
 
-    camera = qhy_cam(-15, args.exp, args.gain, args.crop, args.cam, True)
+    camera = qhy_cam(-15, args.exp, args.gain, args.crop, args.cam, False)
 
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     

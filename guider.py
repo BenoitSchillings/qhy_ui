@@ -20,6 +20,7 @@ class guider:
         self.gain_x = 210.0
         self.gain_y = 210.0
         self.center_x = 0
+        self.last_bump = 0
         self.center_y = 0
         self.cheat_move_x = 0.0
         self.cheat_move_y = 0.0
@@ -53,6 +54,7 @@ class guider:
 
         ax, ay = self.ao.get_ao()
         print(ax, ay)
+
         if (abs(ax) > 80 or abs(ay) > 80):
             self.need_bump(ax, ay)
 
@@ -63,9 +65,12 @@ class guider:
         self.guide_inited_ao = -5
 
     def need_bump(self, ax, ay):
-        bx, by = self.calc_bump(ax, ay)
-        print("bump ", bx, by)
-        self.fbump_mount(-bx, -by)
+        when = self.current_milli_time()
+        if (when - self.last_bump > 5000.0):    #bump at most every 5 seconss
+            self.last_bump = when
+            bx, by = self.calc_bump(ax, ay)
+            print("bump ", bx, by)
+            self.fbump_mount(-bx, -by)
 
     def fbump_mount(self, dx, dy):
 

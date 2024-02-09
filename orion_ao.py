@@ -241,6 +241,7 @@ def home(dev):
 class ao:
     def __init__(self):
         self.do_init()
+        self.home()
 
     def home(self):
         home(self.dev)
@@ -262,7 +263,7 @@ class ao:
 
         self.dev.claimInterface(0)
         
-        self.home()
+        #self.home()
 
         self.m1 = 0
         self.m2 = 0
@@ -273,10 +274,11 @@ class ao:
         self.ay = 0
 
     def clip_motor_pos(self, v):
-        if (v < -80):
-            v = -80
-        if (v > 80):
-            v = 80
+        MAX = 80
+        if (v < -MAX):
+            v = -MAX
+        if (v > MAX):
+            v = MAX
 
         return v
 
@@ -377,7 +379,7 @@ class ao:
             y = math.cos(alpha) * diameter
 
             self.set_ao(int(round(x)), int(round(y)))
-            time.sleep(0.1)
+            time.sleep(0.02)
 
     def close(self):
         print("close ao")
@@ -397,6 +399,6 @@ if __name__ == "__main__":
     #    ao.move_ao(-3, 0)
     #    time.sleep(0.03)
 
-    ao.circle_test(0.01, 50)
+  #  ao.circle_test(0.01, 30)
 
    

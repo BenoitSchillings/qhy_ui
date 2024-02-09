@@ -480,7 +480,7 @@ if __name__ == "__main__":
     if (args.cam == -1):
         camera = fake_cam(-10, args.exp, args.gain, args.crop)
     else:
-        camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam, False)
+        camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam, True)
 
     guider = guider(sky, camera)
 
