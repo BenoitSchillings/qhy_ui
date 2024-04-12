@@ -244,7 +244,7 @@ class UI:
             fits.writeto(fn, buffer, hdr, overwrite=True)
 
 
-        if (self.cnt % 8 == 1):
+        if (self.cnt % 1 == 0):
             ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
             print("RND")
 
@@ -339,9 +339,9 @@ class UI:
 # Convert the flattened index into a 2D index
         max_index_2d = np.unravel_index(max_index, self.array.shape)
         #print(max_index_2d)
-        self.pos.setX(max_index_2d[1])
+        #self.pos.setX(max_index_2d[1])
 
-        self.pos.setY(max_index_2d[0])
+        #self.pos.setY(max_index_2d[0])
         pos = self.clip(self.pos)
        
 
@@ -351,7 +351,7 @@ class UI:
         self.max = np.max(sub)
 
         if possible_star(sub):
-            self.fwhm = 5.0 #fit_gauss_circular(sub)
+            self.fwhm = fit_gauss_circular(sub)
         else:
             self.fwhm = 5.0
 
@@ -375,7 +375,7 @@ class UI:
             time.sleep(0.003)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                sky.rate(ry * 4.0, rx * 4.0)
+                #sky.rate(ry * 4.0, rx * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
             
             
@@ -438,13 +438,13 @@ if __name__ == "__main__":
         sky = None
 
     print("SKY ", sky)
-    #if not (sky is None):
-        #sky.bump(120,0)
+    if not (sky is None):
+        sky.bump(120,0)
 
 
     ipc.set_val("bump", [1.1,1.1])
 
-    camera = qhy_cam(-15, args.exp, args.gain, args.crop, args.cam, False)
+    camera = qhy_cam(-22, args.exp, args.gain, args.crop, args.cam, False)
 
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     

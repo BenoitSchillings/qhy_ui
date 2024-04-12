@@ -45,7 +45,17 @@ class guider:
         self.ao.goto(round(dx), round(dy))
         self.last_ao_move_time = self.current_milli_time()
 
+    def clip(self, val):
+        if (val > 10):
+            val = 10
+        if (val < -10):
+            val = -10
+
+        return val
+
     def fmove_ao(self, dx, dy):
+        dx = self.clip(dx)
+        dy = self.clip(dy)
         self.ao.move(round(dx), round(dy))
         if (np.abs(dx) > 1 or np.abs(dy) > 1):
             self.last_ao_move_time = self.current_milli_time()
@@ -55,7 +65,7 @@ class guider:
         ax, ay = self.ao.get_ao()
         print(ax, ay)
 
-        if (abs(ax) > 80 or abs(ay) > 80):
+        if (abs(ax) > 40 or abs(ay) > 40):
             self.need_bump(ax, ay)
 
     def reset_ao(self):
@@ -66,23 +76,22 @@ class guider:
 
     def need_bump(self, ax, ay):
         when = self.current_milli_time()
-        if (when - self.last_bump > 5000.0):    #bump at most every 5 seconss
+        if (when - self.last_bump > 10000.0):    #bump at most every 5 seconss
             self.last_bump = when
             bx, by = self.calc_bump(ax, ay)
+            
             print("bump ", bx, by)
-            self.fbump_mount(-bx, -by)
+            #self.fbump_mount(-bx*1000, by*1000)
 
     def fbump_mount(self, dx, dy):
 
-        #self.cheat_move_x += dx / 50.0
-        #self.cheat_move_y += dy / 50.0
-        #print("p0")
         if not (self.mount is None):
             print("p1")
-            print(dx, dy)
+            print("bump ", dx, dy)
             if (np.abs(dx) < 3250.0 and np.abs(dy) < 3250):
-                print("job")
                 print("LOG MOVE", dx, dy)
+                dx = dx + 1
+                dy = dy + 1
                 self.mount.jog(dx/3600.0,dy/3600.0)
         else:
             print("mount is none")
@@ -117,6 +126,7 @@ class guider:
         settings['gain_x'] = self.gain_x
         settings['gain_y'] = self.gain_y
 
+        print(settings)
         with open(filename, "wb") as f:
             pickle.dump(settings, f)
 
@@ -229,7 +239,7 @@ class guider:
 
 
     def handle_calibrate_ao(self, x, y):
-        N = 120
+        N = 60
         print("handle cal pos", x, y,)
         if (self.ao_cal_state_count == 40):
             self.ao_pos_x0 = x
@@ -272,25 +282,25 @@ class guider:
         if (self.mount_cal_state_count == 40):
             self.mount_pos_x0 = x
             self.mount_pos_y0 = y
-            self.fbump_mount(-N, 0.0001)
+            self.fbump_mount(-N, 0.0001)        #x0 is initial position
             log.info("Move Left")
 
         if (self.mount_cal_state_count == 30):
-            self.mount_pos_x1 = x
+            self.mount_pos_x1 = x               #x1 is pos after move -N, 0
             self.mount_pos_y1 = y
             self.fbump_mount(N, 0.0001)
             log.info("Move Right")
 
 
         if (self.mount_cal_state_count == 20):
-            self.mount_pos_x2 = x
+            self.mount_pos_x2 = x               #x2 is pos after move back to 0,0
             self.mount_pos_y2 = y
             self.fbump_mount(0.0001, -N)
             log.info("Move Up")
 
 
-        if (self.mount_cal_state_count == 10):
-            self.mount_pos_x3 = x
+        if (self.mount_cal_state_count == 10):  
+            self.mount_pos_x3 = x               #x3 is pos after move 0, -N
             self.mount_pos_y3 = y
             self.fbump_mount(0.0001, N)
             log.info("Move Down")
@@ -311,7 +321,15 @@ class guider:
         self.mount_dx2 = self.mount_pos_x3 - self.mount_pos_x2      
         self.mount_dy2 = self.mount_pos_y3 - self.mount_pos_y2
 
+        print("cal moves are :", self.mount_dx1,self.mount_dy1, self.mount_dx2, self.mount_dy2)
         self.save_state("guide.data")
+
+
+#for a mount move of -N, 0
+#pixel moves are -25.69414424992641 117.3161273463495
+
+#for a mount move of 0, -N
+#pixel moves are -113.37292137679776 -22.3384521558703
 
     def calc_calibration_ao(self):
         log.info("calc cal ao")
@@ -340,6 +358,7 @@ class guider:
 
 
     def handle_guide_ao(self, x, y):
+        print("pos", x, y)
         if (self.guide_inited_ao <= 0):
             self.center_x = x
             self.center_y = y
@@ -348,7 +367,6 @@ class guider:
             dx = x - self.center_x
             dy = y - self.center_y
 
-            #ipc.set_val("guide_error", [dx,dy])
             self.dis = self.distance(dx,dy)
             
             if (self.dis > 50.0):
@@ -361,7 +379,7 @@ class guider:
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
             log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(90.0*-tx, 90.0*-ty)
+            self.fmove_ao(21.0*-tx, 21.0*-ty)
             #self.mount(bump, tx, ty)
 
             return dx, dy
@@ -447,7 +465,9 @@ class guider:
     def compute_mx_my(self, tx, ty):
         my = self.ao_dy1 * ty + self.ao_dy2 * ty
         mx = self.ao_dx1 * tx + self.ao_dx2 * tx
-
+        mx = mx / 60.0
+        my = my / 60.0
+        print("mx,my = ", mx, my)
         return mx, my
 
     def calc_bump(self, tx, ty):

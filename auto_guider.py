@@ -48,7 +48,7 @@ from guider import *
 
 
 def rand_move():
-    guider.fbump(random.uniform(-500, 500), random.uniform(-500, 500))
+    guider.reset_ao()
 
 
 class fake_cam:
@@ -412,7 +412,7 @@ class UI:
            
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                sky.rate(rx * 4.0, ry * 4.0)
+                #sky.rate(rx * 4.0, ry * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
            
             
@@ -480,7 +480,7 @@ if __name__ == "__main__":
     if (args.cam == -1):
         camera = fake_cam(-10, args.exp, args.gain, args.crop)
     else:
-        camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam, True)
+        camera = qhy_cam(-5, args.exp, args.gain, args.crop, args.cam, False)
 
     guider = guider(sky, camera)
 

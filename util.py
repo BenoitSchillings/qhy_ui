@@ -321,7 +321,8 @@ def compute_centroid(array, x, y):
 
   # Find the indices and values of the star pixels in the array
 
-  array = array[y - 16: y + 16, x - 16:x + 16]
+  N = 32
+  array = array[y - N: y + N, x - N:x + N]
 
   array = array - (np.min(array) + 1.0 * np.std(array))
 
@@ -334,7 +335,7 @@ def compute_centroid(array, x, y):
   centroid_col = np.sum(cols * values) / np.sum(values)
   centroid_value = np.max(values)
 
-  return centroid_col + x - 16, centroid_row + y - 16, centroid_value
+  return centroid_col + x - N, centroid_row + y - N, centroid_value
 
 
 from scipy.optimize import minimize

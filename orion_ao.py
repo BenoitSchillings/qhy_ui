@@ -193,9 +193,12 @@ def home(dev):
     m1, m2, m3, m4 = get_ao_pos(dev)
     print("p1 = ", m1, m2, m3, m4)
     status = get_homing_status(dev)
-    
-    while(status != 0):
-        print(hex(status))
+   
+    count = 100
+
+    while(count > 0 and status != 0):
+        print(count, hex(status))
+        count = count - 1 
         #m1, m2, m3, m4 = get_ao_pos(dev)
         print("new pos = ", m1, m2, m3, m4)
         if (status & 0x80 != 0):
@@ -274,7 +277,7 @@ class ao:
         self.ay = 0
 
     def clip_motor_pos(self, v):
-        MAX = 80
+        MAX = 40
         if (v < -MAX):
             v = -MAX
         if (v > MAX):
@@ -293,12 +296,14 @@ class ao:
         delta_m3 = target_m3 - self.m3
         delta_m4 = target_m4 - self.m4
 
+        print("move motor by ", delta_m1, delta_m2, delta_m3, delta_m4)
         move_motors(self.dev, delta_m1, delta_m2, delta_m3, delta_m4)
 
         self.m1 = target_m1
         self.m2 = target_m2
         self.m3 = target_m3
         self.m4 = target_m4
+        print("now motor at ", self.m1, self.m2, self.m3, self.m4)
 
 
     def move_motors(self, dm1, dm2, dm3, dm4):

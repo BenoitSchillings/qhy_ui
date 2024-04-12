@@ -84,72 +84,91 @@ class FrameWindow(QtWidgets.QMainWindow):
 
 class UI:
     def click(self, event):
-        event.accept()      
+        event.accept()    
         self.pos = event.pos()
-        print ("click", int(self.pos.x()),int(self.pos.y()))
+        print ("click", int(self.pos.x()), int(self.pos.y()))
 
-    def convert_nparray_to_QPixmap(self,img):
-        w,h = img.shape
-
+    def convert_nparray_to_QPixmap(self, img):
+        w, h = img.shape
         qimg = QImage(img.data, h, w, QImage.Format_Grayscale16) 
         qpixmap = QPixmap(qimg)
-
         return qpixmap
 
-        
-
-
-    def __init__(self,  args, sx, sy, data):
+    def __init__(self, args, sx, sy, data):
         self.sx = sx
         self.sy = sy
         self.auto_level = False
-      	
-        self.pos = QPoint(256,256)
-        self.array = data
         
+        self.pos = QPoint(256,256)
+
+        self.file_index = 0
+        self.filenames = args.filenames 
+
+        if len(self.filenames) == 0:
+            raise ValueError("No image files provided!")
+
+        self.array = self.load_image(self.filenames[self.file_index])
+
         self.win = FrameWindow()
         self.EDGE = 64
-        
+         
         self.win.resize(1500,1000)
-        
+         
         self.imv = pg.ImageView()
         self.imv.setImage(self.array)
         self.imv.getImageItem().setAutoDownsample(active=True)
-        #self.cross_hair = CrosshairImageItem(self.array)
-        #self.imv.addItem(self.cross_hair)
         self.win.setCentralWidget(self.imv)
 
         self.statusBar = QtWidgets.QStatusBar()
-
-
         temp_widget = QtWidgets.QWidget(self.win)
         temp_widget.setLayout(QtWidgets.QHBoxLayout())
         temp_widget.setFixedSize(1024, 256)
         self.zoom_view = QtWidgets.QLabel(self.win)
         
         temp_widget.layout().addWidget(self.zoom_view)
-    
-
-
 
         rightlayout = QtWidgets.QWidget(self.win)
         rightlayout.setLayout(QtWidgets.QVBoxLayout())
         rightlayout.setFixedSize(464, 158)
-        
-        self.filename = QtWidgets.QLineEdit(args.filename)
+         
+        self.filename = QtWidgets.QLineEdit(self.filenames[self.file_index])  # Show initial filename
         rightlayout.layout().addWidget(self.filename)
+
+        # UI Elements for navigation
+        self.prev_button = QtWidgets.QPushButton("Previous", self.win)
+        self.prev_button.clicked.connect(self.prev_image)
+        rightlayout.layout().addWidget(self.prev_button)
+
+        self.next_button = QtWidgets.QPushButton("Next", self.win)
+        self.next_button.clicked.connect(self.next_image)
+        rightlayout.layout().addWidget(self.next_button)
 
 
         self.statusBar.addPermanentWidget(rightlayout)
-
         self.win.setStatusBar(self.statusBar)
-        
-      
-        
-        self.imv.getImageItem().mouseClickEvent = self.click
 
+        self.imv.getImageItem().mouseClickEvent = self.click
         self.win.show()
-    
+
+    def load_image(self, filename):
+        if filename.endswith('.fits'):
+            data = fits.getdata(filename, ext=0)
+        else:  
+            data = cv2.imread(filename)
+        return data
+
+    def prev_image(self):
+        self.file_index = (self.file_index - 1) % len(self.filenames)
+        self.load_and_update()
+
+    def next_image(self):
+        self.file_index = (self.file_index + 1) % len(self.filenames)
+        self.load_and_update()
+
+    def load_and_update(self):
+        self.array = self.load_image(self.filenames[self.file_index])
+        self.update()
+        self.filename.setText(self.filenames[self.file_index])  
 
 
     def clip(self, pos):
@@ -163,9 +182,6 @@ class UI:
         if (pos.y() > (self.sy-self.EDGE)):
             pos.setY(self.sy-self.EDGE)
 
-        return pos
-
-        
     def update(self):
 
         shape = self.array.shape
@@ -196,9 +212,9 @@ class UI:
         max = self.max - self.min
         sub =  sub * (65535.0/((max+1)))
         sub = sub.astype(np.uint16)
-        sub = cv2.resize(sub, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
-        pixmap = self.convert_nparray_to_QPixmap(sub)
-        self.zoom_view.setPixmap(pixmap)
+        #sub = cv2.resize(sub, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
+        #pixmap = self.convert_nparray_to_QPixmap(sub)
+        #self.zoom_view.setPixmap(pixmap)
 
 
 
@@ -212,18 +228,13 @@ class UI:
                 
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--filename", type=str, default = 'x.fits', help="generic file name")
+    parser.add_argument("filenames", nargs="+", type=str, help="List of image filenames")  # filenames as arguments
     args = parser.parse_args()
 
-    data = fits.getdata(args.filename, ext=0)
-
-    ui = UI(args, data.shape[1], data.shape[0], data)
-    
-
-
+    # Assuming you have data loading logic, get data based on filenames
+    ui = UI(args, 1024, 1024, None)  # Adjust dimensions as needed
     ui.mainloop(args)
 
 
