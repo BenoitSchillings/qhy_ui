@@ -48,7 +48,7 @@ from guider import *
 
 
 def rand_move():
-    guider.reset_ao()
+    guider.bump()
 
 
 class fake_cam:

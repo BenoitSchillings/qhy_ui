@@ -29,6 +29,7 @@ class qhyccd():
         self.mode = 1 # set default mode to stream mode, otherwise set 0 for single frame mode
         self.bpp = c_uint(16) # 8 bit
         self.exposureMS = 100 # 100ms
+
         self.connect(self.mode, cam_name)
         self.ClearBuffers()
         self.start_time = 0
@@ -69,12 +70,12 @@ class qhyccd():
         self.cam = self.sdk.OpenQHYCCD(self.id)
         self.sdk.StopQHYCCDLive(self.cam)   #here
         print(self.GetModeName(1))
- 
+        
         self.sdk.SetQHYCCDReadMode(self.cam, 1)
         if (self.live):
             self.sdk.SetQHYCCDStreamMode(self.cam, 1)  
         self.sdk.InitQHYCCD(self.cam)
-
+        #self.sdk.SetQHYCCDBinMode(3,3)
         # Get Camera Parameters
         self.chipw = c_double()
         self.chiph = c_double()

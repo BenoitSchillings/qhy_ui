@@ -2,6 +2,83 @@ import numpy as np
 
 from scipy.optimize import leastsq
 
+
+from scipy.optimize import curve_fit
+
+def find_minimum_parabola(data):
+    """
+    Fit a parabola to the given data and find the position of the minimum.
+    
+    Args:
+        data (numpy.ndarray): 1D array of float values representing the data.
+        
+    Returns:
+        float: The position of the minimum of the fitted parabola.
+    """
+    # Ensure the input data is a 1D numpy array
+    data = np.asarray(data).ravel()
+    
+    # Define the parabola function
+    def parabola(x, a, b, c):
+        return a * x**2 + b * x + c
+    
+    # Get the indices of the data points
+    x = np.arange(len(data))
+    
+    # Fit the parabola using non-linear least squares
+    try:
+        popt, pcov = curve_fit(parabola, x, data, p0=[1, 1, 1])
+    except RuntimeError:
+        # If the fit fails, try again with a different initial guess
+        try:
+            popt, pcov = curve_fit(parabola, x, data, p0=[-1, -1, -1])
+        except RuntimeError:
+            # If the fit still fails, return None
+            return None
+    
+    # Calculate the minimum position
+    a, b, c = popt
+    if a == 0:
+        # If the parabola is a straight line, return None
+        return None
+    else:
+        min_position = -b / (2 * a)
+        return min_position
+
+        
+def compute_hfd(image):
+    """
+    Compute the half flux diameter (HFD) of a star image in a 2D array.
+    
+    Args:
+        image (numpy.ndarray): 2D array containing the star image.
+        
+    Returns:
+        float: The half flux diameter (HFD) of the star image.
+    """
+    # Find the centroid (center of mass) of the star image
+    total_flux = np.sum(image)
+    y, x = np.indices(image.shape)
+    y_centroid = np.sum(y * image) / total_flux
+    x_centroid = np.sum(x * image) / total_flux
+    
+    # Sort the pixel values in descending order
+    sorted_pixels = np.sort(image.ravel())[::-1]
+    
+    # Calculate the cumulative sum of the sorted pixel values
+    cumsum = np.cumsum(sorted_pixels)
+    
+    # Find the radius at which the cumulative sum reaches half of the total flux
+    half_flux = total_flux / 2
+    idx = np.searchsorted(cumsum, half_flux, side='right')
+    radius = np.sqrt((idx - 1) / np.pi)
+    
+    # The HFD is twice the radius
+    hfd = 2 * radius
+    
+    return hfd
+    
+
 def fit_gauss_circular(data):
     """
     ---------------------

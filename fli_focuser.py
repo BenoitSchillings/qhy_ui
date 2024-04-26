@@ -131,7 +131,10 @@ class focuser:
         self.save()
         
     def get_pos(self):
-        return fli_getsteppos(self.dev)   
+        return fli_getsteppos(self.dev) 
+
+    def get_abs_pos(self):
+        return self.pos  
 
     def home(self):
         home_stepper_motor(self.dev)

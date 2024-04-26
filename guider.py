@@ -28,6 +28,7 @@ class guider:
         self.ao_cal_state_count = 0
         self.ao_calibrated = 0
         self.guide_inited_ao = 0
+        self.total_bump = 0
         N = 2
         self.last_x = LastNValues(N)
         self.last_y = LastNValues(N)
@@ -73,6 +74,22 @@ class guider:
         self.last_ao_move_time = self.current_milli_time()
         time.sleep(0.3)
         self.guide_inited_ao = -5
+
+
+    def bump(self):
+        if (self.total_bump == 0):
+            self.center_x = self.center_x + 15
+        if (self.total_bump == 1):
+            self.center_x = self.center_x - 15
+        if (self.total_bump == 2):
+            self.center_x = self.center_y + 15
+        if (self.total_bump == 3):
+            self.center_x = self.center_y - 15
+            self.total_bump = -1
+
+        self.total_bump = self.total_bump + 1
+        print("bump is ", self.total_bump)
+
 
     def need_bump(self, ax, ay):
         when = self.current_milli_time()
@@ -379,7 +396,7 @@ class guider:
             ty = 1.0*self.error_to_ty_ao(dx, dy)
 
             log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(21.0*-tx, 21.0*-ty)
+            self.fmove_ao(41.0*-tx, 41.0*-ty)
             #self.mount(bump, tx, ty)
 
             return dx, dy
