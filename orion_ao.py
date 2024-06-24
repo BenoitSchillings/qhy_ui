@@ -204,22 +204,22 @@ def home(dev):
         if (status & 0x80 != 0):
             move_m4 = -7
         else:
-            move_m4 = 3
+            move_m4 = 7
 
         if (status & 0x40 != 0):
             move_m3 = -7
         else:
-            move_m3 = 3
+            move_m3 = 7
 
         if (status & 0x20 != 0):
             move_m2 = -7
         else:
-            move_m2 = 3
+            move_m2 = 7
 
         if (status & 0x10 != 0):
             move_m1 = -7
         else:
-            move_m1 = 3
+            move_m1 = 7
 
         print("new move is ", move_m1, move_m2, move_m3, move_m4)
         move_motors(dev, move_m1, move_m2, move_m3, move_m4)
@@ -277,7 +277,7 @@ class ao:
         self.ay = 0
 
     def clip_motor_pos(self, v):
-        MAX = 40
+        MAX = 43
         if (v < -MAX):
             v = -MAX
         if (v > MAX):
@@ -296,14 +296,14 @@ class ao:
         delta_m3 = target_m3 - self.m3
         delta_m4 = target_m4 - self.m4
 
-        print("move motor by ", delta_m1, delta_m2, delta_m3, delta_m4)
+        #print("move motor by ", delta_m1, delta_m2, delta_m3, delta_m4)
         move_motors(self.dev, delta_m1, delta_m2, delta_m3, delta_m4)
 
         self.m1 = target_m1
         self.m2 = target_m2
         self.m3 = target_m3
         self.m4 = target_m4
-        print("now motor at ", self.m1, self.m2, self.m3, self.m4)
+        #print("now motor at ", self.m1, self.m2, self.m3, self.m4)
 
 
     def move_motors(self, dm1, dm2, dm3, dm4):
@@ -377,7 +377,7 @@ class ao:
 
     def circle_test(self, speed, diameter):
         alpha = 0.0
-        rotate_to_angle(self.dev, 90)
+        #rotate_to_angle(self.dev, 90)
         while(True):
             alpha = alpha + speed
             x = math.sin(alpha) * diameter
@@ -404,6 +404,6 @@ if __name__ == "__main__":
     #    ao.move_ao(-3, 0)
     #    time.sleep(0.03)
 
-  #  ao.circle_test(0.01, 30)
+    #ao.circle_test(0.01, 30)
 
    

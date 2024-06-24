@@ -57,6 +57,7 @@ def compute_hfd(image):
         float: The half flux diameter (HFD) of the star image.
     """
     # Find the centroid (center of mass) of the star image
+    image = image - np.min(image)
     total_flux = np.sum(image)
     y, x = np.indices(image.shape)
     y_centroid = np.sum(y * image) / total_flux
@@ -78,7 +79,44 @@ def compute_hfd(image):
     
     return hfd
     
+def extract_centered_subarray(array, subarray_size):
+    if len(array.shape) != 2:
+        raise ValueError("Input array must be 2-dimensional")
+    
+    if subarray_size % 2 == 0:
+        raise ValueError("Subarray size must be odd")
+    
+    # Find the coordinates of the maximum value
+    max_coord = np.unravel_index(np.argmax(array), array.shape)
 
+    # Calculate the center of the subarray
+    center_x, center_y = max_coord
+    
+    # Calculate the half-width of the subarray
+    half_width = subarray_size // 2
+
+    # Calculate the boundaries of the subarray
+    start_x = max(0, center_x - half_width)
+    end_x = min(array.shape[0], center_x + half_width + 1)
+    start_y = max(0, center_y - half_width)
+    end_y = min(array.shape[1], center_y + half_width + 1)
+
+    # Extract the subarray
+    subarray = array[start_x:end_x, start_y:end_y]
+
+    # If the subarray is smaller than the desired size due to edge cases, pad it
+    if subarray.shape != (subarray_size, subarray_size):
+        padded = np.zeros((subarray_size, subarray_size))
+        x_offset = half_width - center_x if center_x < half_width else 0
+        y_offset = half_width - center_y if center_y < half_width else 0
+        padded[x_offset:x_offset+subarray.shape[0], 
+               y_offset:y_offset+subarray.shape[1]] = subarray
+        return padded
+    
+    return subarray
+
+
+    
 def fit_gauss_circular(data):
     """
     ---------------------
@@ -401,7 +439,7 @@ def compute_centroid(array, x, y):
   N = 32
   array = array[y - N: y + N, x - N:x + N]
 
-  array = array - (np.min(array) + 1.0 * np.std(array))
+  array = array - (np.min(array) + 1.5 * np.std(array))
 
   rows, cols = np.where(array > 0.0)
   values = array[rows, cols]
@@ -413,6 +451,56 @@ def compute_centroid(array, x, y):
   centroid_value = np.max(values)
 
   return centroid_col + x - N, centroid_row + y - N, centroid_value
+
+
+from scipy import ndimage
+from skimage.filters import threshold_otsu
+
+def compute_centroid_improved(array, x, y, initial_size=32, final_size=16, iterations=3):
+    def iterate_centroid(sub_array, size):
+        # Use Otsu's method for adaptive thresholding
+        thresh = threshold_otsu(sub_array)
+        binary = sub_array > thresh
+        
+        # Use center of mass for initial estimate
+        cy, cx = ndimage.center_of_mass(binary)
+        
+        # Refine using weighted centroid
+        rows, cols = np.where(binary)
+        values = sub_array[rows, cols]
+        centroid_row = np.sum(rows * values) / np.sum(values)
+        centroid_col = np.sum(cols * values) / np.sum(values)
+        
+        return centroid_col, centroid_row
+
+    current_x, current_y = x, y
+    current_size = initial_size
+
+    for _ in range(iterations):
+        half_size = current_size // 2
+        sub_array = array[int(current_y - half_size):int(current_y + half_size),
+                          int(current_x - half_size):int(current_x + half_size)]
+        
+        dx, dy = iterate_centroid(sub_array, current_size)
+        
+        current_x += dx - half_size
+        current_y += dy - half_size
+        
+        current_size = max(final_size, current_size // 2)
+
+    # Final refined centroid
+    final_half_size = final_size // 2
+    final_array = array[int(current_y - final_half_size):int(current_y + final_half_size),
+                        int(current_x - final_half_size):int(current_x + final_half_size)]
+    
+    final_dx, final_dy = iterate_centroid(final_array, final_size)
+    
+    final_x = current_x + final_dx - final_half_size
+    final_y = current_y + final_dy - final_half_size
+    
+    centroid_value = np.max(final_array)
+    
+    return final_x, final_y, centroid_value
 
 
 from scipy.optimize import minimize
@@ -544,3 +632,125 @@ class LastNValues:
             # If the array is empty or not full yet, return False
             return False
         return (self.values[0] > 0 and self.values[-1] > 0) or (self.values[0] < 0 and self.values[-1] < 0)
+
+"""
+# Example usage
+
+try:
+    guider = AdaptiveGuider.load_state()
+except FileNotFoundError:
+    print("No previous state found. Starting with default parameters.")
+    guider = AdaptiveGuider()
+
+    
+# Simulate guiding over time
+for i in range(100):
+    # Simulate current position (replace with actual centroid calculation)
+    current_x = 100 + np.sin(i * 0.1) * 5  # Simulated oscillation
+    current_y = 100 + np.cos(i * 0.1) * 3
+
+    # Target position
+    target_x, target_y = 100, 100
+
+    # Compute guiding correction
+    correction_x, correction_y = guider.guide(current_x, current_y, target_x, target_y)
+
+    print(f"Step {i}: Correction (x, y) = ({correction_x:.2f}, {correction_y:.2f})")
+
+    # Apply correction (in a real system, you would send these commands to your mount)
+    # current_x += correction_x
+    # current_y += correction_y
+
+
+guider.save_state()
+
+""""
+
+
+class AdaptiveGuider:
+    def __init__(self, Kp_init=0.5, Ki_init=0.1, Kd_init=0.2, max_correction=5.0):
+        self.Kp = Kp_init  # Proportional gain
+        self.Ki = Ki_init  # Integral gain
+        self.Kd = Kd_init  # Derivative gain
+        self.max_correction = max_correction
+        self.prev_error = {'x': 0, 'y': 0}
+        self.integral = {'x': 0, 'y': 0}
+        self.last_correction = {'x': 0, 'y': 0}
+
+    def update_gains(self, error, axis):
+        # Adaptive gain adjustment based on error magnitude
+        error_mag = abs(error)
+        if error_mag > 2.0:
+            self.Kp = min(self.Kp * 1.1, 1.0)
+        elif error_mag < 0.5:
+            self.Kp = max(self.Kp * 0.9, 0.1)
+
+        # Adjust Ki and Kd based on Kp
+        self.Ki = self.Kp * 0.2
+        self.Kd = self.Kp * 0.4
+
+    def compute_correction(self, error, axis):
+        # Update gains
+        self.update_gains(error, axis)
+
+        # PID calculation
+        p_term = self.Kp * error
+        self.integral[axis] += error
+        i_term = self.Ki * self.integral[axis]
+        d_term = self.Kd * (error - self.prev_error[axis])
+
+        # Calculate correction
+        correction = p_term + i_term + d_term
+
+        # Apply smoothing to avoid abrupt changes
+        smoothing_factor = 0.7
+        correction = smoothing_factor * correction + (1 - smoothing_factor) * self.last_correction[axis]
+
+        # Limit maximum correction
+        correction = np.clip(correction, -self.max_correction, self.max_correction)
+
+        # Update state for next iteration
+        self.prev_error[axis] = error
+        self.last_correction[axis] = correction
+
+        return correction
+
+    def guide(self, current_x, current_y, target_x, target_y):
+        error_x = target_x - current_x
+        error_y = target_y - current_y
+
+        correction_x = self.compute_correction(error_x, 'x')
+        correction_y = self.compute_correction(error_y, 'y')
+
+        return correction_x, correction_y
+
+    def save_state(self, filename='guider_state.json'):
+        state = {
+            'Kp': self.Kp,
+            'Ki': self.Ki,
+            'Kd': self.Kd,
+            'max_correction': self.max_correction,
+            'prev_error': self.prev_error,
+            'integral': self.integral,
+            'last_correction': self.last_correction
+        }
+        with open(filename, 'w') as f:
+            json.dump(state, f)
+        print(f"State saved to {filename}")
+
+    @classmethod
+    def load_state(cls, filename='guider_state.json'):
+        with open(filename, 'r') as f:
+            state = json.load(f)
+        
+        guider = cls()
+        guider.Kp = state['Kp']
+        guider.Ki = state['Ki']
+        guider.Kd = state['Kd']
+        guider.max_correction = state['max_correction']
+        guider.prev_error = state['prev_error']
+        guider.integral = state['integral']
+        guider.last_correction = state['last_correction']
+        
+        print(f"State loaded from {filename}")
+        return guider

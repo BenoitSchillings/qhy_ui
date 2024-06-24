@@ -176,7 +176,7 @@ class UI:
 
         
         self.win = FrameWindow()
-        self.EDGE = 16
+        self.EDGE = 32
         
         self.win.resize(800,900)
         

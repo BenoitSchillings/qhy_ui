@@ -13,15 +13,15 @@ print(N)
 print("count ", fid.count)
 for idx in range(1, N):
     sum = fid.load_img(idx)
-    mean = mean + sum
-    print(idx, np.mean(sum), sum)
     if (idx % 100 == 0):
         print(idx)
+    fn = "sys.argv[1]" + string(idx) + ".fits"
+    hdr = fits.header.Header()
+    fits.writeto(fn, (sum).astype(np.float32), hdr, overwrite=True)
+
 fid.close()
 
 mean = mean / N
-hdr = fits.header.Header()
-fits.writeto(sys.argv[2], (mean).astype(np.float32), hdr, overwrite=True)
 
 
 

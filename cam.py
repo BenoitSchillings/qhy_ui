@@ -103,7 +103,7 @@ class UI:
         self.update_state = 1
         self.auto = auto
         self.auto_level = False
-      	
+        self.hdf = 10.0
         self.rms = 0
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
@@ -294,7 +294,7 @@ class UI:
         return pos
 
     def update_status(self):
-        self.txt1.setText("FWHM= " + "{:.2f}  ".format(self.fwhm) + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
+        self.txt1.setText("FWHM= " + "{:.2f}  ".format(self.fwhm) + "HDF= " + "{:.3f}  ".format(self.hdf) + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
         self.updateplot(self.fwhm)
 
         if (self.cnt % 5 == 2):
@@ -311,7 +311,34 @@ class UI:
        
         
         return img 
+
+    def find_max_position(self, arr):
+        """
+        Find the position (row, column) of the maximum element in a 2D array.
         
+        Args:
+            arr (numpy.ndarray): 2D array.
+            
+        Returns:
+            tuple: Position (row, column) of the maximum element.
+        """
+        # Get the flattened index of the maximum element
+        max_idx = np.argmax(arr)
+        
+        # Convert the flattened index to row and column indices
+        row, col = np.unravel_index(max_idx, arr.shape)
+        
+        return row, col
+
+
+    def sharpness(self, img):
+        row, col = self.find_max_position(img)
+        try:
+            hdf = compute_hfd(img[row-15:row+15,col-15:col+15])
+            return hdf
+        except:
+            return 100.0
+
     def update(self):
         def possible_star(array):
             max = np.max(array)
@@ -351,9 +378,12 @@ class UI:
         self.max = np.max(sub)
 
         if possible_star(sub):
-            self.fwhm = fit_gauss_circular(sub)
+
+            self.fwhm = fit_gauss_circular(extract_centered_subarray(sub, 21))
+            self.hdf = self.sharpness(sub)
         else:
-            self.fwhm = 5.0
+            self.fwhm = 999.0
+            self.hdf = 10.0
 
         self.rms = np.std(self.array)
 
@@ -421,15 +451,15 @@ class UI:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--filename", type=str, default = 'emccd_capture_', help="generic file name")
-    parser.add_argument("-exp", type=float, default = 0.1, help="exposure in seconds (default 0.1)")
-    parser.add_argument("-gain", "--gain", type=int, default = 100, help="camera gain (default 100)")
+    parser.add_argument("-exp", type=float, default = 1, help="exposure in seconds (default 0.1)")
+    parser.add_argument("-gain", "--gain", type=int, default = 80, help="camera gain (default 100)")
     parser.add_argument("-bin", "--bin", type=int, default = 1, help="camera binning (default 1-6)")
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
     parser.add_argument("-count", "--count", type=int, default = 100, help="number of frames to capture")
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="auto start stop capture")
-    parser.add_argument("-fits", "--fits", type=int, default = 0, help="save as fits files")
-    parser.add_argument("-cam", "--cam", type=str, default = "", help="cam name")
+    parser.add_argument("-fits", "--fits", type=int, default = 1, help="save as fits files")
+    parser.add_argument("-cam", "--cam", type=str, default = "268", help="cam name")
     args = parser.parse_args()
 
     try:

@@ -287,7 +287,7 @@ class sky6RASCOMTele(object):
         dx = min(dx, 9.9)
         dy = max(dy, -9.9)
         dy = min(dy, 9.9)
-        
+        print("jog ",dx,dy)
         quote = '"'
         
         if (dy >= 0):
@@ -304,7 +304,7 @@ class sky6RASCOMTele(object):
 
             print(command)
             output = self.conn._send(command).splitlines()
-            print(output)
+            #print(output)
 
         if (dx >= 0):
             cmd = "Jog(" + str(dx) + ',"E"' + ")"
@@ -317,9 +317,9 @@ class sky6RASCOMTele(object):
                 var Out = "";
                 sky6RASCOMTele."""
             command = command + cmd + "\n"
-            print(command)
+            #print(command)
             output = self.conn._send(command).splitlines()
-            print(output)
+            #print(output)
 
 
 

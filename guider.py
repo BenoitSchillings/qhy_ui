@@ -1,10 +1,32 @@
 
 
-import logging as log
+
 from util import *
 import pickle
 from orion_ao import ao
 import time
+import math
+import numpy as np
+
+import logging
+from datetime import datetime
+
+# Create a logger object
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+
+# Create a file handler and a stream handler
+file_handler = logging.FileHandler('app.log')
+stream_handler = logging.StreamHandler()
+
+# Create a formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+stream_handler.setFormatter(formatter)
+
+# Add the handlers to the logger
+log.addHandler(file_handler)
+log.addHandler(stream_handler)
 
 
 
@@ -64,9 +86,9 @@ class guider:
 
 
         ax, ay = self.ao.get_ao()
-        print(ax, ay)
+        log.info("tip-tilt %f %f", ax, ay)
 
-        if (abs(ax) > 40 or abs(ay) > 40):
+        if (abs(ax) > 20 or abs(ay) > 20):
             self.need_bump(ax, ay)
 
     def reset_ao(self):
@@ -78,40 +100,49 @@ class guider:
 
     def bump(self):
         if (self.total_bump == 0):
-            self.center_x = self.center_x + 15
+            self.center_x = self.center_x + 3
         if (self.total_bump == 1):
-            self.center_x = self.center_x - 15
+            self.center_x = self.center_x - 3
         if (self.total_bump == 2):
-            self.center_x = self.center_y + 15
+            self.center_x = self.center_y + 3
         if (self.total_bump == 3):
-            self.center_x = self.center_y - 15
+            self.center_x = self.center_y - 3
             self.total_bump = -1
 
         self.total_bump = self.total_bump + 1
-        print("bump is ", self.total_bump)
+        log.info(f"bump is {self.total_bump}")
 
 
     def need_bump(self, ax, ay):
         when = self.current_milli_time()
-        if (when - self.last_bump > 10000.0):    #bump at most every 5 seconss
+        if (when - self.last_bump > 8000.0):    #bump at most every 8 seconss
             self.last_bump = when
             bx, by = self.calc_bump(ax, ay)
-            
-            print("bump ", bx, by)
-            #self.fbump_mount(-bx*1000, by*1000)
+            bx = ax  
+            by = ay
+            log.info("bump %f %f", bx, by)
+            self.fbump_mount(bx, by)
 
     def fbump_mount(self, dx, dy):
 
         if not (self.mount is None):
-            print("p1")
-            print("bump ", dx, dy)
-            if (np.abs(dx) < 3250.0 and np.abs(dy) < 3250):
-                print("LOG MOVE", dx, dy)
-                dx = dx + 1
-                dy = dy + 1
-                self.mount.jog(dx/3600.0,dy/3600.0)
+            log.info("p1")
+            log.info(f"bump {dx}, {dy}")
+            if (np.abs(dx) > 800.0 or np.abs(dy) > 800.0):
+                log.info("too big")
+                return
+            if (np.abs(dx) > 12.0 or np.abs(dy) > 12.0):
+                
+            
+                dx = -dx
+                dy = dy
+                
+                dx = -dx #meridan
+                log.info("LOG MOVE %f %f", dx, dy)
+
+                self.mount.jog(np.sign(dy) * 0.03 + dy/12500.0,np.sign(dx) * 0.03 + dx/12500.0)
         else:
-            print("mount is none")
+            log.info("mount is none")
 
     def start_calibrate_mount(self):
         log.info("calibrate")
@@ -219,7 +250,7 @@ class guider:
 
     def handle_calibrate_aox(self, x, y):
         N1 = 15
-        print("handle cal pos", x, y,self.ao_cal_state_count)
+        log.info(f"handle cal pos {x}, {y},{self.ao_cal_state_count}")
         if (self.ao_cal_state_count%4 == 0):
             self.ao_pos_x0 = x
             self.ao_pos_y0 = y
@@ -256,8 +287,8 @@ class guider:
 
 
     def handle_calibrate_ao(self, x, y):
-        N = 60
-        print("handle cal pos", x, y,)
+        N = 35
+        log.info("handle cal pos", x, y,)
         if (self.ao_cal_state_count == 40):
             self.ao_pos_x0 = x
             self.ao_pos_y0 = y
@@ -338,7 +369,7 @@ class guider:
         self.mount_dx2 = self.mount_pos_x3 - self.mount_pos_x2      
         self.mount_dy2 = self.mount_pos_y3 - self.mount_pos_y2
 
-        print("cal moves are :", self.mount_dx1,self.mount_dy1, self.mount_dx2, self.mount_dy2)
+        log.info("cal moves are :%f %f %f %f", self.mount_dx1,self.mount_dy1, self.mount_dx2, self.mount_dy2)
         self.save_state("guide.data")
 
 
@@ -375,7 +406,7 @@ class guider:
 
 
     def handle_guide_ao(self, x, y):
-        print("pos", x, y)
+        log.info("pos %f %f", x, y)
         if (self.guide_inited_ao <= 0):
             self.center_x = x
             self.center_y = y
@@ -386,14 +417,15 @@ class guider:
 
             self.dis = self.distance(dx,dy)
             
-            if (self.dis > 50.0):
+            if (self.dis > 60.0):
+                log.info("too far")
                 return 0,0
 
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
 
-            tx = 1.0*self.error_to_tx_ao(dx, dy)
-            ty = 1.0*self.error_to_ty_ao(dx, dy)
+            tx = 0.25*self.error_to_tx_ao(dx, dy)
+            ty = 0.25*self.error_to_ty_ao(dx, dy)
 
             log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
             self.fmove_ao(41.0*-tx, 41.0*-ty)
@@ -421,8 +453,8 @@ class guider:
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
 
-            tx = 1.0*self.error_to_tx_mount(dx, dy)
-            ty = 1.0*self.error_to_ty_mount(dx, dy)
+            tx = 0.2*self.error_to_tx_mount(dx, dy)
+            ty = 0.2*self.error_to_ty_mount(dx, dy)
 
             log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
             self.fbump_mount(tx, ty)
@@ -437,15 +469,15 @@ class guider:
         
     def pos_handler(self, x, y):
         if (self.mount_cal_state_count != 0):
-            print("handle mount ", x, y)
+            log.info(f"handle mount {x} {y}")
             self.handle_calibrate_mount(x , y)
 
 
         if self.ao_cal_state_count != 0:
-            print("handle ", x, y)
+            log.info(f"handle {x} {y}")
             self.handle_calibrate_ao(x, y)
 
-        print("guide_ao = ", self.ao_calibrated)
+        log.info(f"guide_ao = {self.ao_calibrated}")
 
         if self.ao_calibrated != 0:
             return self.handle_guide_ao(x, y)
@@ -484,7 +516,7 @@ class guider:
         mx = self.ao_dx1 * tx + self.ao_dx2 * tx
         mx = mx / 60.0
         my = my / 60.0
-        print("mx,my = ", mx, my)
+        log.info(f"mx,my =  {mx}, {my}")
         return mx, my
 
     def calc_bump(self, tx, ty):
