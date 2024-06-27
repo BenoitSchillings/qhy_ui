@@ -27,9 +27,23 @@ import math
 from scipy import ndimage
 import mover
 
-import logging as log
+import logging
 
-log.basicConfig(level=log.INFO)
+log_main = logging.getLogger(__name__)
+log_main.setLevel(logging.INFO)
+
+# Create a file handler and a stream handler
+file_handler = logging.FileHandler('centroid.log')
+stream_handler = logging.StreamHandler()
+
+# Create a formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+stream_handler.setFormatter(formatter)
+
+# Add the handlers to the logger
+log_main.addHandler(file_handler)
+log_main.addHandler(stream_handler)
 
 sky = skyx.sky6RASCOMTele()
 
@@ -54,7 +68,7 @@ def rand_move():
 class fake_cam:
     def __init__(self, temp, exp, gain, crop):
         
-        log.info("init cam")
+        log_main.info("init cam")
         self.frame = np.random.randint(0,4096, (512,512), dtype=np.uint16)
         self.stars_frame = self.stars(self.frame, 4, gain=2)
 
@@ -123,7 +137,7 @@ class FrameWindow(QtWidgets.QMainWindow):
         global ui
 
         ui.auto_level = True
-        log.info("AUTO LEVEL")
+        log_main.info("AUTO LEVEL")
 
     def _createMenuBar(self):
         menu_bar = QMenuBar(self)
@@ -137,7 +151,7 @@ class FrameWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         self.quit = 1
-        log.info("quit")
+        log_main.info("quit")
         QtWidgets.QMainWindow.closeEvent(self, event)
 
 
@@ -145,7 +159,7 @@ class UI:
     def click(self, event):
         event.accept()      
         self.pos = event.pos()
-        log.info("click %d %d", int(self.pos.x()),int(self.pos.y()))
+        log_main.info("click %d %d", int(self.pos.x()),int(self.pos.y()))
 
     def convert_nparray_to_QPixmap(self,img):
         w,h = img.shape
@@ -303,16 +317,16 @@ class UI:
 
     def Calibrate_ao_buttonClick(self):
         self.guider.calibrate_ao()
-        log.info("Calibrate_ao")
+        log_main.info("Calibrate_ao")
 
 
     def Calibrate_mount_buttonClick(self):
         self.guider.calibrate_mount()
-        log.info("Calibrate_mount")
+        log_main.info("Calibrate_mount")
 
     def Guide_buttonClick(self):
         self.guider.guide()
-        log.info("Guide")
+        log_main.info("Guide")
 
     def updateplot(self, x, y):
         self.databufferx.append(x)
@@ -340,7 +354,7 @@ class UI:
         return pos
 
     def update_status(self):
-        self.txt1.setText("FWHM= " + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
+        self.txt1.setText("FWHM= " + "min=" + "{:04f}".format(self.min) + " max=" + "{:04f}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
         self.updateplot(self.ccx, self.ccy)
 
         if (self.cnt % 30 == 0):
@@ -406,7 +420,11 @@ class UI:
         global cheat_move_x
 
         mean_old = 0.0
-
+# Create an instance of HighValueFinder
+        dark = fits.getdata("guide_dark.fits", ext=0)
+        dark = dark - 1000.0
+        #dark = dark * 0.0
+        finder = HighValueFinder()
         while(self.win.quit == 0):
             time.sleep(0.01)
            
@@ -423,12 +441,15 @@ class UI:
             #print(result)
 
             if (result is not None):
+                result = result - dark
                 self.array = result
-
-                max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
-                #log.info("max value = %d %d", max_x, max_y)
-                self.cy, self.cx, cv = compute_centroid(self.array, max_y + 32, max_x + 32)
-                #log.info("calc centroid = %f %f", self.cx, self.cy)
+                
+                max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
+                #print(max_y, max_x, val)
+                #max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
+                log_main.info("max value = %d %d, %f", max_x, max_y, val)
+                self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
+                log_main.info("calc centroid = %f %f", self.cx, self.cy)
                 #self.cx = 0
                 #self.cy = 0
                 self.ipc_check()

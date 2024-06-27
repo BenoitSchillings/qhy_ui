@@ -1,3 +1,4 @@
+
 import zmq
 import numpy as np
 import time
@@ -245,7 +246,7 @@ class UI:
 
 
         if (self.cnt % 1 == 0):
-            ipc.set_val("bump", [random.uniform(-3, 3),random.uniform(-3, 3)])
+            ipc.set_val("bump", [random.uniform(-1, 1),random.uniform(-1, 1)])
             print("RND")
 
 
@@ -474,7 +475,7 @@ if __name__ == "__main__":
 
     ipc.set_val("bump", [1.1,1.1])
 
-    camera = qhy_cam(-22, args.exp, args.gain, args.crop, args.cam, False)
+    camera = qhy_cam(-4, args.exp, args.gain, args.crop, args.cam, False)
 
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     

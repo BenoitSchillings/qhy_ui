@@ -416,6 +416,69 @@ def fit_moffat_elliptical(xy, data):
 
 from cv2 import medianBlur
 
+import numpy as np
+from cv2 import medianBlur
+
+class HighValueFinder:
+    def __init__(self, search_box_size=32, blur_size=3):
+        self.hint_x = None
+        self.hint_y = None
+        self.reference_value = None
+        self.search_box_size = search_box_size
+        self.blur_size = blur_size
+
+    def find_high_value_element(self, array):
+        array = array.astype('float32')
+        filtered_array = medianBlur(array, self.blur_size)
+
+        if self.hint_x is not None and self.hint_y is not None and self.reference_value is not None:
+            # Define the search box boundaries
+            x_start = max(0, self.hint_x - self.search_box_size // 2)
+            x_end = min(array.shape[1], self.hint_x + self.search_box_size // 2)
+            y_start = max(0, self.hint_y - self.search_box_size // 2)
+            y_end = min(array.shape[0], self.hint_y + self.search_box_size // 2)
+            
+            # Extract the search box
+            search_area = filtered_array[y_start:y_end, x_start:x_end]
+            
+            # Find the maximum value within the search box
+            local_max = np.max(search_area)
+            
+            # If the local max is less than half the reference value, do a full scan
+            if local_max < 0.5 * self.reference_value:
+                return self._full_array_scan(filtered_array)
+            
+            local_rows, local_cols = np.where(search_area == local_max)
+            
+            # Translate local coordinates back to global coordinates
+            col = local_cols[0] + x_start
+            row = local_rows[0] + y_start
+        else:
+            # If no hint is available, do a full array scan
+            col, row, val = self._full_array_scan(filtered_array)
+        
+        # Update hint and reference value for next call
+        self.hint_x, self.hint_y = col, row
+        self.reference_value = filtered_array[row, col]
+        
+        return col, row, filtered_array[row, col]
+
+    def _full_array_scan(self, array):
+        rows, cols = np.where(array == np.max(array))
+        return cols[0], rows[0], array[rows[0], cols[0]]
+
+    def reset(self):
+        self.hint_x = None
+        self.hint_y = None
+        self.reference_value = None
+
+def find_high_value_element(array, size=3):
+    array = array.astype('float32')
+    filtered_array = medianBlur(array, size)
+    rows, cols = np.where(filtered_array == np.max(filtered_array))
+    return cols[0], rows[0], filtered_array[rows[0], cols[0]]
+
+
 def find_high_value_element(array, size = 3):
   array = array.astype('float32')
   #print(array.dtype)
@@ -664,7 +727,7 @@ for i in range(100):
 
 guider.save_state()
 
-""""
+"""
 
 
 class AdaptiveGuider:
