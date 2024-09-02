@@ -5,6 +5,57 @@ from scipy.optimize import leastsq
 
 from scipy.optimize import curve_fit
 
+from scipy.optimize import curve_fit
+from scipy.signal import savgol_filter
+
+def find_best_focus(data):
+    """
+    Fit the given data and find the position of the minimum.
+    
+    Args:
+        data (numpy.ndarray): 1D array of float values representing the data.
+        
+    Returns:
+        float: The position of the minimum of the fitted data.
+    """
+    # Ensure the input data is a 1D numpy array
+    data = np.asarray(data).ravel()
+    
+    # Generate x values (focus positions) based on the length of the data
+    x = np.arange(len(data))
+    
+    # Apply Savitzky-Golay filter to smooth the data
+    window_length = min(len(data) // 2 * 2 + 1, 5)  # Ensure window length is odd and not larger than the data
+    poly_order = min(3, window_length - 1)
+    smoothed_data = savgol_filter(data, window_length, poly_order)
+    
+    # Define the parabola function
+    def parabola(x, a, b, c):
+        return a * (x - b)**2 + c
+    
+    # Set bounds for the parameters
+    # a > 0 ensures the parabola opens upward
+    # b is constrained to be within the range of x values
+    # c has no constraints
+    bounds = ([0, x.min(), -np.inf],
+              [np.inf, x.max(), np.inf])
+    
+    # Fit the parabola using non-linear least squares with bounds
+    try:
+        popt, _ = curve_fit(parabola, x, smoothed_data, p0=[1, np.mean(x), np.mean(smoothed_data)], bounds=bounds)
+    except RuntimeError:
+        # If the fit fails, return the position with the minimum smoothed data value
+        return float(x[np.argmin(smoothed_data)])
+    
+    # The minimum position is directly given by the 'b' parameter
+    min_position = popt[1]
+    
+    # Ensure the returned value is within the range of x values
+    min_position = max(x.min(), min(x.max(), min_position))
+    
+    return float(min_position)
+
+
 def find_minimum_parabola(data):
     """
     Fit a parabola to the given data and find the position of the minimum.
@@ -419,6 +470,7 @@ from cv2 import medianBlur
 import numpy as np
 from cv2 import medianBlur
 
+"""
 class HighValueFinder:
     def __init__(self, search_box_size=32, blur_size=3):
         self.hint_x = None
@@ -445,7 +497,8 @@ class HighValueFinder:
             local_max = np.max(search_area)
             
             # If the local max is less than half the reference value, do a full scan
-            if local_max < 0.5 * self.reference_value:
+            if local_max < 0.3 * self.reference_value:
+                print("max too low. rescan full %f %f", local_max, self.reference_value)
                 return self._full_array_scan(filtered_array)
             
             local_rows, local_cols = np.where(search_area == local_max)
@@ -471,6 +524,9 @@ class HighValueFinder:
         self.hint_x = None
         self.hint_y = None
         self.reference_value = None
+
+"""
+
 
 def find_high_value_element(array, size=3):
     array = array.astype('float32')

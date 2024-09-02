@@ -134,13 +134,13 @@ class guider:
             if (np.abs(dx) > 12.0 or np.abs(dy) > 12.0):
                 
             
-                dx = -dx
-                dy = dy
-                
-                dx = -dx #meridan
+              
+                dy = dy          # for before meridan
+                #dy = -dy        # for before meridan
+                #dx = -dx 
                 log.info("LOG MOVE %f %f", dx, dy)
 
-                self.mount.jog(np.sign(dy) * 0.03 + dy/12500.0,np.sign(dx) * 0.03 + dx/12500.0)
+                self.mount.jog(np.sign(dy) * 0.003 + dy/1500.0,np.sign(dx) * 0.003 + dx/1500.0)
         else:
             log.info("mount is none")
 
@@ -417,9 +417,9 @@ class guider:
 
             self.dis = self.distance(dx,dy)
             
-            if (self.dis > 60.0):
+            if (self.dis > 80.0):
                 log.info("too far")
-                return 0,0
+                #return 0,0
 
             self.last_x.add_value(dx)
             self.last_y.add_value(dy)
@@ -428,7 +428,7 @@ class guider:
             ty = 0.25*self.error_to_ty_ao(dx, dy)
 
             log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(41.0*-tx, 41.0*-ty)
+            self.fmove_ao(61.0*-tx, 61.0*-ty)
             #self.mount(bump, tx, ty)
 
             return dx, dy
@@ -516,7 +516,7 @@ class guider:
         mx = self.ao_dx1 * tx + self.ao_dx2 * tx
         mx = mx / 60.0
         my = my / 60.0
-        log.info(f"mx,my =  {mx}, {my}")
+        #log.info(f"mx,my =  {mx}, {my}")
         return mx, my
 
     def calc_bump(self, tx, ty):

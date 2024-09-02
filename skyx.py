@@ -290,10 +290,11 @@ class sky6RASCOMTele(object):
         print("jog ",dx,dy)
         quote = '"'
         
-        if (dy >= 0):
+        cmd = None 
+        if (dy > 0.002):
             cmd = "Jog(" + str(dy) + ',"N"' + ")"
             
-        if (dy < 0):
+        if (dy < -0.002):
             cmd = "Jog(" + str(-dy) + ',"S"' + ")"
         
         if (not(cmd is None)):
@@ -306,17 +307,18 @@ class sky6RASCOMTele(object):
             output = self.conn._send(command).splitlines()
             #print(output)
 
-        if (dx >= 0):
-            cmd = "Jog(" + str(dx) + ',"E"' + ")"
+        cmd1 = None 
+        if (dx > 0.002):
+            cmd1 = "Jog(" + str(dx) + ',"E"' + ")"
             
-        if (dx < 0):
-            cmd = "Jog(" + str(-dx) + ',"W"' + ")"
+        if (dx < -0.002):
+            cmd1 = "Jog(" + str(-dx) + ',"W"' + ")"
         
-        if (not(cmd is None)):
+        if (not(cmd1 is None)):
             command = """
                 var Out = "";
                 sky6RASCOMTele."""
-            command = command + cmd + "\n"
+            command = command + cmd1 + "\n"
             #print(command)
             output = self.conn._send(command).splitlines()
             #print(output)

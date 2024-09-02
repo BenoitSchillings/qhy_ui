@@ -65,6 +65,72 @@ def rand_move():
     guider.bump()
 
 
+from cv2 import medianBlur
+
+class HighValueFinder:
+    def __init__(self, search_box_size=72, blur_size=3):
+        self.hint_x = None
+        self.hint_y = None
+        self.reference_value = None
+        self.search_box_size = search_box_size
+        self.blur_size = blur_size
+
+    def find_high_value_element(self, array):
+        array = array.astype('float32')
+        filtered_array = medianBlur(array, self.blur_size)
+
+        if self.hint_x is not None and self.hint_y is not None and self.reference_value is not None:
+            # Define the search box boundaries
+            x_start = max(0, self.hint_x - self.search_box_size // 2)
+            x_end = min(array.shape[1], self.hint_x + self.search_box_size // 2)
+            y_start = max(0, self.hint_y - self.search_box_size // 2)
+            y_end = min(array.shape[0], self.hint_y + self.search_box_size // 2)
+            
+            # Extract the search box
+            search_area = filtered_array[y_start:y_end, x_start:x_end]
+            
+            # Find the maximum value within the search box
+            local_max = np.max(search_area)
+            log_main.info("maxv %f %f", local_max, self.reference_value)
+            # If the local max is less than half the reference value, do a full scan
+            if local_max < 0.1 * self.reference_value:
+                log_main.info("max too low. rescan full %f %f", local_max, self.reference_value)
+                return self._full_array_scan(filtered_array)
+            
+            local_rows, local_cols = np.where(search_area == local_max)
+            
+            # Translate local coordinates back to global coordinates
+            col = local_cols[0] + x_start
+            row = local_rows[0] + y_start
+        else:
+            # If no hint is available, do a full array scan
+            col, row, val = self._full_array_scan(filtered_array)
+        
+        # Update hint and reference value for next call
+        self.hint_x, self.hint_y = col, row
+        self.reference_value = filtered_array[row, col]
+        log_main.info("curpos %d %d", col, row)
+        return col, row, filtered_array[row, col]
+
+    def _full_array_scan(self, array):
+        rows, cols = np.where(array == np.max(array))
+        log_main.info("full scan %d %d", cols[0], rows[0])
+        self.reference_value = array[rows[0], cols[0]]
+        return cols[0], rows[0], array[rows[0], cols[0]]
+
+    def reset(self):
+        self.hint_x = None
+        self.hint_y = None
+        self.reference_value = None
+
+def find_high_value_element(array, size=3):
+    array = array.astype('float32')
+    filtered_array = medianBlur(array, size)
+    rows, cols = np.where(filtered_array == np.max(filtered_array))
+    return cols[0], rows[0], filtered_array[rows[0], cols[0]]
+
+
+
 class fake_cam:
     def __init__(self, temp, exp, gain, crop):
         
@@ -423,7 +489,7 @@ class UI:
 # Create an instance of HighValueFinder
         dark = fits.getdata("guide_dark.fits", ext=0)
         dark = dark - 1000.0
-        #dark = dark * 0.0
+        dark = dark * 1.0
         finder = HighValueFinder()
         while(self.win.quit == 0):
             time.sleep(0.01)
@@ -447,9 +513,9 @@ class UI:
                 max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
                 #print(max_y, max_x, val)
                 #max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
-                log_main.info("max value = %d %d, %f", max_x, max_y, val)
+                #log_main.info("max value = %d %d, %f", max_x, max_y, val)
                 self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
-                log_main.info("calc centroid = %f %f", self.cx, self.cy)
+                log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
                 #self.cx = 0
                 #self.cy = 0
                 self.ipc_check()
@@ -483,12 +549,12 @@ class UI:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-exp", type=float, default = 0.1, help="exposure in seconds (default 0.1)")
-    parser.add_argument("-gain", "--gain", type=int, default = 100, help="camera gain (default 100)")
+    parser.add_argument("-gain", "--gain", type=int, default = 300, help="camera gain (default 100)")
     parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
     
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="start guiding automatically")
-    parser.add_argument("-cam", "--cam", type=str, default = 0, help="cam name")
+    parser.add_argument("-cam", "--cam", type=str, default = "462", help="cam name")
     args = parser.parse_args()
 
     try:

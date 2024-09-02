@@ -172,7 +172,7 @@ def loadFITSFiles(fileList):
     images = []
     filenames = []
     for file in fileList:
-        data = fits.getdata(file, ext=0)
+        data = np.fliplr(fits.getdata(file, ext=0))
         images.append(data)
         filenames.append(file)
     return images, filenames

@@ -268,18 +268,18 @@ class UI:
     def handle_focus_frame(self, data):
         print("focus state is ", self.focus_state)
 
-        if (self.focus_state > 480):
-            min = find_minimum_parabola(self.samples)
-            print("min = ", find_minimum_parabola(self.samples))
+        if (self.focus_state > 370):
+            min = find_best_focus(self.samples)
+            print("min = ", find_best_focus(self.samples))
             self.focus_state = -1
-            self.foc.move_to(int(self.foc_p0 - 400 + 16 * min))
-            print("best focus = ", self.foc_p0 - 400 + 16 * min)
+            self.foc.move_to(int(self.foc_p0 - 280 + 20 * min))
+            print("best focus = ", self.foc_p0 - 280 + 20 * min)
             return
 
         if (self.focus_state == 0):
-            print("init set focus to ", self.foc_p0 - 400)
-            self.p0 = self.foc_p0 - 400
-            self.foc.move_to(self.foc_p0 - 400)
+            print("init set focus to ", self.foc_p0 - 280)
+            self.p0 = self.foc_p0 - 280
+            self.foc.move_to(self.foc_p0 - 280)
             self.focus_state = self.focus_state + 1
             self.samples =  np.array([], dtype=np.float32)  # You can use np.float32 if you need less precision
 
@@ -302,12 +302,12 @@ class UI:
             return
 
         if (self.focus_state % 14 == 0):
-            self.samples = np.append(self.samples, -self.focus_acc)
+            self.samples = np.append(self.samples, self.focus_acc)
             print(self.samples)
             self.focus_acc = 0
             
-            self.p0 = self.p0 + 16
-            print("move focus up by 16 to", self.p0)
+            self.p0 = self.p0 + 20
+            print("move focus up by 20 to", self.p0)
             self.foc.move_to(self.p0)
             self.focus_state = self.focus_state + 1
             return
