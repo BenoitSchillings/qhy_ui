@@ -1,155 +1,71 @@
-
-
-
-from util import *
-import pickle
-from orion_ao import ao
-import time
-import math
-import numpy as np
-
 import logging
-from datetime import datetime
+import pickle
+import time
+import numpy as np
+from pico import ao
+from util import LastNValues
 
-# Create a logger object
+# Configure logging
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
-
-# Create a file handler and a stream handler
 file_handler = logging.FileHandler('app.log')
 stream_handler = logging.StreamHandler()
-
-# Create a formatter and add it to the handlers
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 stream_handler.setFormatter(formatter)
-
-# Add the handlers to the logger
 log.addHandler(file_handler)
 log.addHandler(stream_handler)
 
-
-
 class guider:
     def __init__(self, mount, camera):
-        log.info("init")
+        log.info("Initializing Guider")
         self.reset()
         self.ao = ao()
-        self.mount = mount
         self.camera = camera
-        self.guide_inited = 0
-        #self.filter = KalmanFilter(0.1)
         self.gain_x = 210.0
         self.gain_y = 210.0
         self.center_x = 0
-        self.last_bump = 0
         self.center_y = 0
-        self.cheat_move_x = 0.0
-        self.cheat_move_y = 0.0
-        self.mount_cal_state_count = 0
         self.ao_cal_state_count = 0
         self.ao_calibrated = 0
         self.guide_inited_ao = 0
-        self.total_bump = 0
-        N = 2
-        self.last_x = LastNValues(N)
-        self.last_y = LastNValues(N)
+        self.centering_target_x = None
+        self.centering_target_y = None
+        self.centering_state = 0  # 0: not centering, 1: centering in progress
+        self.pixels_per_ao_x = 1
+        self.pixels_per_ao_y = 1
+
         self.load_state("guide.data")
-        #self.ao_calibrated = 1
         self.last_ao_move_time = self.current_milli_time()
 
+    def close(self):
+        self.ao.goto(0, 0)
 
     def current_milli_time(self):
         return time.time() * 1000.0
-
-
 
     def fbump_ao(self, dx, dy):
         self.ao.goto(round(dx), round(dy))
         self.last_ao_move_time = self.current_milli_time()
 
     def clip(self, val):
-        if (val > 10):
-            val = 10
-        if (val < -10):
-            val = -10
-
-        return val
+        return max(-10, min(10, val))
 
     def fmove_ao(self, dx, dy):
         dx = self.clip(dx)
         dy = self.clip(dy)
         self.ao.move(round(dx), round(dy))
-        if (np.abs(dx) > 1 or np.abs(dy) > 1):
+        if abs(dx) > 1 or abs(dy) > 1:
             self.last_ao_move_time = self.current_milli_time()
-
-
 
         ax, ay = self.ao.get_ao()
         log.info("tip-tilt %f %f", ax, ay)
 
-        if (abs(ax) > 20 or abs(ay) > 20):
-            self.need_bump(ax, ay)
-
     def reset_ao(self):
-        self.fbump_ao(0,0)
+        self.fbump_ao(0, 0)
         self.last_ao_move_time = self.current_milli_time()
         time.sleep(0.3)
         self.guide_inited_ao = -5
-
-
-    def bump(self):
-        if (self.total_bump == 0):
-            self.center_x = self.center_x + 3
-        if (self.total_bump == 1):
-            self.center_x = self.center_x - 3
-        if (self.total_bump == 2):
-            self.center_x = self.center_y + 3
-        if (self.total_bump == 3):
-            self.center_x = self.center_y - 3
-            self.total_bump = -1
-
-        self.total_bump = self.total_bump + 1
-        log.info(f"bump is {self.total_bump}")
-
-
-    def need_bump(self, ax, ay):
-        when = self.current_milli_time()
-        if (when - self.last_bump > 8000.0):    #bump at most every 8 seconss
-            self.last_bump = when
-            bx, by = self.calc_bump(ax, ay)
-            bx = ax  
-            by = ay
-            log.info("bump %f %f", bx, by)
-            self.fbump_mount(bx, by)
-
-    def fbump_mount(self, dx, dy):
-
-        if not (self.mount is None):
-            log.info("p1")
-            log.info(f"bump {dx}, {dy}")
-            if (np.abs(dx) > 800.0 or np.abs(dy) > 800.0):
-                log.info("too big")
-                return
-            if (np.abs(dx) > 12.0 or np.abs(dy) > 12.0):
-                
-            
-              
-                dy = dy          # for before meridan
-                #dy = -dy        # for before meridan
-                #dx = -dx 
-                log.info("LOG MOVE %f %f", dx, dy)
-
-                self.mount.jog(np.sign(dy) * 0.003 + dy/1500.0,np.sign(dx) * 0.003 + dx/1500.0)
-        else:
-            log.info("mount is none")
-
-    def start_calibrate_mount(self):
-        log.info("calibrate")
-        self.cal_state_mount = 20
-
-    def stop_calibrate_mount(self):
-        self.cal_state_mount = 0
 
     def start_guide(self):
         self.is_guiding = 1
@@ -158,372 +74,199 @@ class guider:
         self.is_guiding = 0
 
     def save_state(self, filename):
-        settings = {}
-
-        settings['mount_dx1'] = self.mount_dx1
-        settings['mount_dx2'] = self.mount_dx2
-        settings['mount_dy1'] = self.mount_dy1
-        settings['mount_dy2'] = self.mount_dy2
-
-        settings['ao_dx1'] = self.ao_dx1
-        settings['ao_dx2'] = self.ao_dx2
-        settings['ao_dy1'] = self.ao_dy1
-        settings['ao_dy2'] = self.ao_dy2
-
-
-        settings['gain_x'] = self.gain_x
-        settings['gain_y'] = self.gain_y
-
-        print(settings)
+        settings = {
+            'ao_dx1': self.ao_dx1,
+            'ao_dx2': self.ao_dx2,
+            'ao_dy1': self.ao_dy1,
+            'ao_dy2': self.ao_dy2,
+            'gain_x': self.gain_x,
+            'gain_y': self.gain_y,
+            'pixels_per_ao_x': self.pixels_per_ao_x,
+            'pixels_per_ao_y': self.pixels_per_ao_y
+        }
         with open(filename, "wb") as f:
             pickle.dump(settings, f)
 
     def load_state(self, filename):
-        """Load the state of the object from a file.
-
-        Arguments:
-        filename -- the name of the file to load the state from
-        """
         try:
             with open(filename, "rb") as f:
                 settings = pickle.load(f)
-                self.mount_dx1 = settings['mount_dx1']
-                self.mount_dx2 = settings['mount_dx2']
-                self.mount_dy1 = settings['mount_dy1']
-                self.mount_dy2 = settings['mount_dy2']
-
                 self.ao_dx1 = settings['ao_dx1']
                 self.ao_dx2 = settings['ao_dx2']
                 self.ao_dy1 = settings['ao_dy1']
                 self.ao_dy2 = settings['ao_dy2']
-
                 self.gain_x = settings['gain_x']
                 self.gain_y = settings['gain_y']
-
-                print(settings)
-               
+                self.pixels_per_ao_x = settings.get('pixels_per_ao_x', 1)
+                self.pixels_per_ao_y = settings.get('pixels_per_ao_y', 1)
         except Exception as e:
             log.critical("An error occurred while loading the state:", e)
             self.reset()
 
     def reset(self):
-        """Reset the object's state to its default values."""
-        self.cal_state = 0
         self.is_guiding = 0
-        
-        self.mount_dx1 = 0
-        self.mount_dy1 = 0
-        self.mount_dx2 = 0
-        self.mount_dy2 = 0
-
         self.ao_dx1 = 0
         self.ao_dy1 = 0
         self.ao_dx2 = 0
         self.ao_dy2 = 0
 
-
-        self.guiding_with_mount = 0
-        self.cal_state_mount = 0
-
-
-
-    def new_pos(self, x, y):
-        log.info("new pos %d %d", x, y)
-
-    def set_pos(self, x, y):
-        log.info("set pos %d %d", x, y)
-
-    def calibrate_mount(self):
-        self.mount_cal_state_count = 40
-        self.guiding_with_mount = 0
-
     def calibrate_ao(self):
         self.ao_cal_state_count = 40
         self.ao_calibrated = 0
-        print("Calibrate AO !!")
+        log.info("Calibrating AO")
 
     def guide(self):
         self.is_guiding = 1
         self.ao_calibrated = 1
         self.guide_inited_ao = 0
 
-
-    def handle_calibrate_aox(self, x, y):
-        N1 = 15
-        log.info(f"handle cal pos {x}, {y},{self.ao_cal_state_count}")
-        if (self.ao_cal_state_count%4 == 0):
-            self.ao_pos_x0 = x
-            self.ao_pos_y0 = y
-            self.fbump_ao(N1, 0)
-            log.info("Move Left")
-
-        if (self.ao_cal_state_count%4 == 1):
-            self.ao_pos_x1 = x
-            self.ao_pos_y1 = y
-            self.fbump_ao(0, 0)
-            log.info("Move Right")
-
-
-        if (self.ao_cal_state_count%4 == 2):
-            self.ao_pos_x2 = x
-            self.ao_pos_y2 = y
-            self.fbump_ao(0, N1)
-            log.info("Move Up")
-
-
-        if (self.ao_cal_state_count%4 == 3):
-            self.ao_pos_x3 = x
-            self.ao_pos_y3 = y
-            self.fbump_ao(0, 0)
-            log.info("Move Down")
-
-
-        if (self.ao_cal_state_count == 1):
-            self.calc_calibration_ao()
-
-        self.ao_cal_state_count = self.ao_cal_state_count - 1
-        if (self.ao_cal_state_count < 0):
-            self.ao_cal_state_count = 0
-
-
     def handle_calibrate_ao(self, x, y):
-        N = 35
-        log.info("handle cal pos", x, y,)
-        if (self.ao_cal_state_count == 40):
-            self.ao_pos_x0 = x
-            self.ao_pos_y0 = y
+        N = 50  # Calibration step size
+        log.info(f"Handling calibration position: {x}, {y}")
+        if self.ao_cal_state_count == 40:
+            self.ao_pos_x0, self.ao_pos_y0 = x, y
             self.fbump_ao(N, 0)
             log.info("Move Left")
-
-        if (self.ao_cal_state_count == 30):
-            self.ao_pos_x1 = x
-            self.ao_pos_y1 = y
+        elif self.ao_cal_state_count == 30:
+            self.ao_pos_x1, self.ao_pos_y1 = x, y
             self.fbump_ao(0, 0)
             log.info("Move Right")
-
-
-        if (self.ao_cal_state_count == 20):
-            self.ao_pos_x2 = x
-            self.ao_pos_y2 = y
+        elif self.ao_cal_state_count == 20:
+            self.ao_pos_x2, self.ao_pos_y2 = x, y
             self.fbump_ao(0, N)
             log.info("Move Up")
-
-
-        if (self.ao_cal_state_count == 10):
-            self.ao_pos_x3 = x
-            self.ao_pos_y3 = y
+        elif self.ao_cal_state_count == 10:
+            self.ao_pos_x3, self.ao_pos_y3 = x, y
             self.fbump_ao(0, 0)
             log.info("Move Down")
-
-
-        if (self.ao_cal_state_count == 1):
+        elif self.ao_cal_state_count == 1:
             self.calc_calibration_ao()
 
-        self.ao_cal_state_count = self.ao_cal_state_count - 1
-        if (self.ao_cal_state_count < 0):
-            self.ao_cal_state_count = 0
-
-
-
-    def handle_calibrate_mount(self, x, y):
-        N = 1500
-        if (self.mount_cal_state_count == 40):
-            self.mount_pos_x0 = x
-            self.mount_pos_y0 = y
-            self.fbump_mount(-N, 0.0001)        #x0 is initial position
-            log.info("Move Left")
-
-        if (self.mount_cal_state_count == 30):
-            self.mount_pos_x1 = x               #x1 is pos after move -N, 0
-            self.mount_pos_y1 = y
-            self.fbump_mount(N, 0.0001)
-            log.info("Move Right")
-
-
-        if (self.mount_cal_state_count == 20):
-            self.mount_pos_x2 = x               #x2 is pos after move back to 0,0
-            self.mount_pos_y2 = y
-            self.fbump_mount(0.0001, -N)
-            log.info("Move Up")
-
-
-        if (self.mount_cal_state_count == 10):  
-            self.mount_pos_x3 = x               #x3 is pos after move 0, -N
-            self.mount_pos_y3 = y
-            self.fbump_mount(0.0001, N)
-            log.info("Move Down")
-
-
-        if (self.mount_cal_state_count == 1):
-            self.calc_calibration_mount()
-
-        self.mount_cal_state_count = self.mount_cal_state_count - 1
-        if (self.mount_cal_state_count < 0):
-            self.mount_cal_state_count = 0
-
-    def calc_calibration_mount(self):
-        log.info("calc cal mount")
-        self.mount_dx1 = self.mount_pos_x1 - self.mount_pos_x0       
-        self.mount_dy1 = self.mount_pos_y1 - self.mount_pos_y0
-
-        self.mount_dx2 = self.mount_pos_x3 - self.mount_pos_x2      
-        self.mount_dy2 = self.mount_pos_y3 - self.mount_pos_y2
-
-        log.info("cal moves are :%f %f %f %f", self.mount_dx1,self.mount_dy1, self.mount_dx2, self.mount_dy2)
-        self.save_state("guide.data")
-
-
-#for a mount move of -N, 0
-#pixel moves are -25.69414424992641 117.3161273463495
-
-#for a mount move of 0, -N
-#pixel moves are -113.37292137679776 -22.3384521558703
+        self.ao_cal_state_count = max(0, self.ao_cal_state_count - 1)
 
     def calc_calibration_ao(self):
-        log.info("calc cal ao")
-        self.ao_dx1 = self.ao_pos_x1 - self.ao_pos_x0       
+        log.info("Calculating AO calibration")
+        self.ao_dx1 = self.ao_pos_x1 - self.ao_pos_x0
         self.ao_dy1 = self.ao_pos_y1 - self.ao_pos_y0
-
-        self.ao_dx2 = self.ao_pos_x3 - self.ao_pos_x2      
+        self.ao_dx2 = self.ao_pos_x3 - self.ao_pos_x2
         self.ao_dy2 = self.ao_pos_y3 - self.ao_pos_y2
-
+        
+        # Calculate pixels per unit AO movement
+        self.pixels_per_ao_x = self.ao_dx1 / 50  # 50 is the N value used in calibration
+        self.pixels_per_ao_y = self.ao_dy2 / 50
+        
         self.save_state("guide.data")
         self.ao_calibrated = 1
 
-
-    def mount_calibrate_state(self):
-        return mount_cal_state_count
-
-    def distance(self, x, y):
-        return np.sqrt(x*x+y*y)
-
-
-    def offset(self, dx, dy):
-        self.center_x = self.center_x + dx
-        self.center_y = self.center_y + dy
-
-        log.info("new guide position %f %f", self.center_x, self.center_y)
-
-
     def handle_guide_ao(self, x, y):
-        log.info("pos %f %f", x, y)
-        if (self.guide_inited_ao <= 0):
-            self.center_x = x
-            self.center_y = y
-            self.guide_inited_ao = self.guide_inited_ao + 1
+        if self.guide_inited_ao <= 0:
+            self.center_x, self.center_y = x, y
+            self.guide_inited_ao += 1
         else:
-            dx = x - self.center_x
-            dy = y - self.center_y
-
-            self.dis = self.distance(dx,dy)
+            dx, dy = x - self.center_x, y - self.center_y
+            distance = np.sqrt(dx*dx + dy*dy)
             
-            if (self.dis > 80.0):
-                log.info("too far")
-                #return 0,0
+            if distance > 10.0:
+                log.info("Too far")
+                return 0, 0
 
-            self.last_x.add_value(dx)
-            self.last_y.add_value(dy)
+            # Convert pixel error to AO units
+            ao_dx = dx / self.pixels_per_ao_x
+            ao_dy = dy / self.pixels_per_ao_y
 
-            tx = 0.25*self.error_to_tx_ao(dx, dy)
-            ty = 0.25*self.error_to_ty_ao(dx, dy)
+            # Apply a damping factor to avoid overcorrection
+            damping_factor = 0.5
+            ao_dx *= damping_factor
+            ao_dy *= damping_factor
 
-            log.info("ERROR %f %f %f %f | dis %f", dx, dy, tx, ty, self.dis)
-            self.fmove_ao(61.0*-tx, 61.0*-ty)
-            #self.mount(bump, tx, ty)
+            log.info(f"ERROR {dx} {dy} | AO move {ao_dx} {ao_dy} | distance {distance}")
+            self.fmove_ao(-ao_dx, -ao_dy)  # Negative because we want to move opposite to the error
 
             return dx, dy
 
-
-
-    def handle_guide_mount(self, x, y):
-        if (self.guide_inited_mount == 0):
-            self.center_x = x
-            self.center_y = y
-            self.guide_inited_mount = 1
-        else:
-            dx = x - self.center_x
-            dy = y - self.center_y
-
-            #ipc.set_val("guide_error", [dx,dy])
-            self.dis = self.distance(dx,dy)
-
-            if (self.dis > 20.0):
-                return
-
-            self.last_x.add_value(dx)
-            self.last_y.add_value(dy)
-
-            tx = 0.2*self.error_to_tx_mount(dx, dy)
-            ty = 0.2*self.error_to_ty_mount(dx, dy)
-
-            log.info("ERROR %f %f %f %f", dx, dy, tx, ty)
-            self.fbump_mount(tx, ty)
-            #self.mount(bump, tx, ty)
-
-        log.info("get guide point %f %f", x, y)
-
-    def drizzle(self, dx, dy):
-        self.center_x = self.center_x + dx 
-        self.center_y = self.center_y + dy 
-
-        
     def pos_handler(self, x, y):
-        if (self.mount_cal_state_count != 0):
-            log.info(f"handle mount {x} {y}")
-            self.handle_calibrate_mount(x , y)
-
-
         if self.ao_cal_state_count != 0:
-            log.info(f"handle {x} {y}")
+            log.info(f"Handling calibration: {x}, {y}")
             self.handle_calibrate_ao(x, y)
-
-        log.info(f"guide_ao = {self.ao_calibrated}")
-
-        if self.ao_calibrated != 0:
+        elif self.centering_state == 1:
+            return self.handle_centering(x, y)
+        elif self.ao_calibrated != 0:
             return self.handle_guide_ao(x, y)
 
-        return 0,0
+        return 0, 0
 
-            
-    def error_to_tx_mount(self, mx, my):
-        num = (self.mount_dy2 * mx) - (self.mount_dx2 * my)
-        den = (self.mount_dx1 * self.mount_dy2) - (self.mount_dx2 * self.mount_dy1)
-
-        return num / den
-
-    def error_to_ty_mount(self, mx, my):
-        num = (self.mount_dy1 * mx) - (self.mount_dx1 * my)
-        den = (self.mount_dx2 * self.mount_dy1) - (self.mount_dx1 * self.mount_dy2)
-
-        return num / den
-
-            
     def error_to_tx_ao(self, mx, my):
         num = (self.ao_dy2 * mx) - (self.ao_dx2 * my)
         den = (self.ao_dx1 * self.ao_dy2) - (self.ao_dx2 * self.ao_dy1)
-
         return num / den
 
     def error_to_ty_ao(self, mx, my):
         num = (self.ao_dy1 * mx) - (self.ao_dx1 * my)
         den = (self.ao_dx2 * self.ao_dy1) - (self.ao_dx1 * self.ao_dy2)
-
         return num / den
 
+    def new_pos(self, x, y):
+        log.info(f"New position: {x}, {y}")
 
-    def compute_mx_my(self, tx, ty):
-        my = self.ao_dy1 * ty + self.ao_dy2 * ty
-        mx = self.ao_dx1 * tx + self.ao_dx2 * tx
-        mx = mx / 60.0
-        my = my / 60.0
-        #log.info(f"mx,my =  {mx}, {my}")
-        return mx, my
+    def set_pos(self, x, y):
+        log.info(f"Set position: {x}, {y}")
 
-    def calc_bump(self, tx, ty):
-        bump_scaler = 0.5
+    def offset(self, dx, dy):
+        self.center_x += dx
+        self.center_y += dy
+        log.info(f"New guide position: {self.center_x}, {self.center_y}")
 
-        mx, my = self.compute_mx_my(tx, ty)
-        bump_x = self.error_to_tx_mount(mx, my) * bump_scaler
-        bump_y = self.error_to_ty_mount(mx, my) * bump_scaler
+    def drizzle(self, dx, dy):
+        self.center_x += dx
+        self.center_y += dy
 
-        return bump_x, bump_y
+    def start_centering(self, target_x, target_y):
+        """
+        Start the centering process to move the AO to a target position.
+        """
+        self.centering_target_x = target_x
+        self.centering_target_y = target_y
+        self.centering_state = 1
+        log.info(f"Starting centering process to target ({target_x}, {target_y})")
+
+    def handle_centering(self, x, y):
+        dx = self.centering_target_x - x
+        dy = self.centering_target_y - y
+        distance = np.sqrt(dx*dx + dy*dy)
+
+        if distance < 1:  # We're close enough
+            log.info(f"Centering complete. Current position: ({x}, {y})")
+            self.centering_state = 0
+            self.center_x, self.center_y = x, y
+            return 0, 0
+
+        # Calculate step size (max step of 10)
+        step_x = np.clip(dx / self.pixels_per_ao_x, -10, 10)
+        step_y = np.clip(dy / self.pixels_per_ao_y, -10, 10)
+
+        log.info(f"Centering: current ({x}, {y}), target ({self.centering_target_x}, {self.centering_target_y}), move ({step_x}, {step_y})")
+        self.fmove_ao(-step_x, -step_y)  # Negative because we want to move opposite to the error
+
+        return dx, dy
+
+    def move_ao_to_position(self, target_x, target_y, timeout=30):
+        """
+        Move the AO to set the current bright pixel at a given x,y position.
+        
+        :param target_x: The target x-coordinate
+        :param target_y: The target y-coordinate
+        :param timeout: Maximum time in seconds to attempt the move
+        :return: True if successful, False if timed out
+        """
+        self.start_centering(target_x, target_y)
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if self.centering_state == 0:
+                log.info(f"Successfully moved to target position: ({self.center_x}, {self.center_y})")
+                return True
+            time.sleep(0.1)  # Wait a bit before next check
+
+        log.warning(f"Timed out while trying to reach position ({target_x}, {target_y})")
+        self.centering_state = 0  # Reset centering state
+        return False
