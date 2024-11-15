@@ -26,7 +26,7 @@ class zwoasi_wrapper():
         self.SetTemperature(temp)
         self.SetExposure(self.exposureMS)
         self.SetGain(gain)
-        self.SetUSB(80)
+        self.SetUSB(70)
         self.SetFanSpeed(60)
         self.SetSpeed()
 
@@ -59,7 +59,7 @@ class zwoasi_wrapper():
 
         print(f"Open camera: {self.cam_info['Name']}")
         
-        self.cam.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, 40)
+        self.cam.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, 70)
         
         if self.live:
             self.cam.start_video_capture()
@@ -226,41 +226,75 @@ class zwoasi_wrapper():
         self.roi_h = int(roi_h)
         self.cam.set_roi(start_x=int(x0), start_y=int(y0), width=self.roi_w, height=self.roi_h)
         self.imgdata = np.zeros((self.roi_h, self.roi_w), dtype=np.uint8 if self.bpp == 8 else np.uint16)
+
+
     def GetSingleFrame(self):
         if self.live:
             return self.GetLiveFrame()
-
-        if self.exposing_done():
-            self.cam.start_exposure()
-            while self.cam.get_exposure_status() == asi.ASI_EXP_WORKING:
-                time.sleep(0.01)
             
-            #print(self.cam.get_exposure_status())
-            if self.cam.get_exposure_status() == asi.ASI_EXP_SUCCESS:
-                buffer = self.cam.get_data_after_exposure()
-                
-                # Convert bytearray to numpy array
-                if self.bpp == 8:
-                    img = np.frombuffer(buffer, dtype=np.uint8)
-                else:  # 16-bit
-                    img = np.frombuffer(buffer, dtype=np.uint16)
-                
-                # Reshape the array to 2D
-                img = img.reshape((self.roi_h, self.roi_w))
-                
-                self.imgdata = img
-                self.start_time = time.time()
-                return self.imgdata
-            else:
-                print("Exposure failed")
+        # Check if we're not already exposing and need to start a new exposure
+        if not hasattr(self, 'exposure_started'):
+            self.exposure_started = False
+            
+        # If we haven't started an exposure and we're ready to start one
+        if not self.exposure_started and self.exposing_done():
+            try:
+                self.cam.start_exposure()
+                self.exposure_started = True
                 return None
-
+            except Exception as e:
+                print(f"Failed to start exposure: {e}")
+                self.exposure_started = False
+                return None
+                
+        # If we're in the middle of an exposure, check status
+        if self.exposure_started:
+            status = self.cam.get_exposure_status()
+            
+            if status == asi.ASI_EXP_WORKING:
+                # Still exposing
+                return None
+                
+            elif status == asi.ASI_EXP_SUCCESS:
+                try:
+                    # Get the image data
+                    buffer = self.cam.get_data_after_exposure()
+                    
+                    # Convert bytearray to numpy array
+                    if self.bpp == 8:
+                        img = np.frombuffer(buffer, dtype=np.uint8)
+                    else:  # 16-bit
+                        img = np.frombuffer(buffer, dtype=np.uint16)
+                    
+                    # Reshape the array to 2D
+                    img = img.reshape((self.roi_h, self.roi_w))
+                    
+                    # Store the image and update timing
+                    self.imgdata = img
+                    self.start_time = time.time()
+                    
+                    # Reset exposure state
+                    self.exposure_started = False
+                    
+                    return self.imgdata
+                    
+                except Exception as e:
+                    print(f"Failed to retrieve image data: {e}")
+                    self.exposure_started = False
+                    return None
+                    
+            else:  # ASI_EXP_FAILED or other status
+                print(f"Exposure failed with status: {status}")
+                self.exposure_started = False
+                return None
+                
         return None
 
     def GetLiveFrame(self):
         try:
-            buffer = self.cam.capture_video_frame()
-            
+            #print("live0")
+            buffer = self.cam.capture_video_frame(timeout=1300)
+            #print("live1", buffer)
             # Convert bytearray to numpy array
             if self.bpp == 8:
                 img = np.frombuffer(buffer, dtype=np.uint8)
@@ -273,6 +307,7 @@ class zwoasi_wrapper():
             self.imgdata = img
             return self.imgdata
         except asi.ZWO_Error:
+            self.cam.start_video_capture()
             return None
 
     def name(self):
@@ -310,6 +345,7 @@ class zwoasi_wrapper():
         print("Buffers cleared")
 
     def exposing_done(self):
+        return True
         if self.start_time == 0:
             return True
         return time.time() > (self.start_time + self.exposureMS / 1000.0)
@@ -321,7 +357,7 @@ class zwoasi_wrapper():
             #if asi.ASI_FAN_ON in self.cam.get_controls():
             #    self.cam.set_control_value(asi.ASI_FAN_ON, 0)  # Turn off fan
             self.cam.close()
-        self.sdk.close()
+        #self.sdk.close()
 
 # Example usage:
 if __name__ == "__main__":

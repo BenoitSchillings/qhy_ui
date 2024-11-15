@@ -94,10 +94,10 @@ class HighValueFinder:
             
             # Find the maximum value within the search box
             local_max = np.max(search_area)
-            log_main.info("maxv %f %f", local_max, self.reference_value)
+            #log_main.info("maxv %f %f", local_max, self.reference_value)
             # If the local max is less than half the reference value, do a full scan
-            if local_max < 0.1 * self.reference_value:
-                log_main.info("max too low. rescan full %f %f", local_max, self.reference_value)
+            if local_max < 0.4 * self.reference_value:
+                #log_main.info("max too low. rescan full %f %f", local_max, self.reference_value)
                 return self._full_array_scan(filtered_array)
             
             local_rows, local_cols = np.where(search_area == local_max)
@@ -112,12 +112,12 @@ class HighValueFinder:
         # Update hint and reference value for next call
         self.hint_x, self.hint_y = col, row
         self.reference_value = filtered_array[row, col]
-        log_main.info("curpos %d %d", col, row)
+        #log_main.info("curpos %d %d", col, row)
         return col, row, filtered_array[row, col]
 
     def _full_array_scan(self, array):
         rows, cols = np.where(array == np.max(array))
-        log_main.info("full scan %d %d", cols[0], rows[0])
+        #log_main.info("full scan %d %d", cols[0], rows[0])
         self.reference_value = array[rows[0], cols[0]]
         return cols[0], rows[0], array[rows[0], cols[0]]
 
@@ -191,8 +191,6 @@ class fake_cam:
         return 512
 
 
-
-from qhy_cam_interface import *
 
 
 class FrameWindow(QtWidgets.QMainWindow):
@@ -518,7 +516,7 @@ class UI:
                 #max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
                 #log_main.info("max value = %d %d, %f", max_x, max_y, val)
                 self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
-                log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
+                #log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
                 #self.cx = 0
                 #self.cy = 0
                 self.ipc_check()
@@ -562,6 +560,7 @@ if __name__ == "__main__":
 
     try:
         sky.Connect()
+        print("got sky")
     except:
         sky = None
         print("NO SKY")
@@ -570,13 +569,13 @@ if __name__ == "__main__":
     if (args.cam == -1):
         camera = fake_cam(-10, args.exp, args.gain, args.crop)
     else:
-        camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, True)
+        camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, False)
 
 
     guider = guider(sky, camera)
 
     # Set up the signal handler
-    signal.signal(signal.SIGINT, signal_handler)
+    #signal.signal(signal.SIGINT, signal_handler)
 
     ui = UI(args, camera.size_x(), camera.size_y(), guider)
 

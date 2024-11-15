@@ -298,7 +298,7 @@ class UI:
         self.txt1.setText("FWHM= " + "{:.2f}  ".format(self.fwhm) + "HDF= " + "{:.3f}  ".format(self.hdf) + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
         self.updateplot(self.fwhm)
 
-        if (self.cnt % 5 == 2):
+        if (self.cnt % 1135 == 2):
             if not (sky is None):
                 p0 = sky.GetRaDec()
                 try:
@@ -416,7 +416,9 @@ class UI:
             
             app.processEvents()
             result = camera.get_frame()
-           
+            
+            if (result is None):
+                self.update()
 
             if (result is not None):
                 self.array = result
@@ -464,7 +466,7 @@ if __name__ == "__main__":
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-auto", "--auto", type=int, default = 0, help="auto start stop capture")
     parser.add_argument("-fits", "--fits", type=int, default = 1, help="save as fits files")
-    parser.add_argument("-cam", "--cam", type=str, default = "268", help="cam name")
+    parser.add_argument("-cam", "--cam", type=str, default = "2600", help="cam name")
     args = parser.parse_args()
 
     try:
@@ -479,7 +481,7 @@ if __name__ == "__main__":
 
     ipc.set_val("bump", [1.1,1.1])
 
-    camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, True)
+    camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, False)
 
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     

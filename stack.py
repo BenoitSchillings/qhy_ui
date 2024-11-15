@@ -205,7 +205,7 @@ def stack_images(image_files):
 
         count = count + 1.0
 
-        if (count == 10  or  image_file == image_files[-1]):
+        if (count == 20  or  image_file == image_files[-1]):
             mean, std = robust_mean_std(sum, 2)
             fits.writeto("stack" + str(N) + ".fits", (mean * count).astype(np.float32), overwrite=True)
             N = N + 1

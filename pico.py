@@ -1,6 +1,7 @@
 import time
 import math
 import controller as xp
+import sys
 
 m1_fwd, m1_back = 11690, -16450
 m2_fwd, m2_back = 13080, -13800
@@ -16,18 +17,19 @@ def move_low_level(v1, v2, v3):
     scaled_v1 = scale_motor_value(v1, m1_fwd, m1_back)
     scaled_v2 = scale_motor_value(v2, m2_fwd, m2_back)
     scaled_v3 = scale_motor_value(v3, m3_fwd, m3_back)
+    print(scaled_v1, scaled_v2, scaled_v3)
     xp.move3(1100, scaled_v1, scaled_v2, scaled_v3)
 
 
-class AOController:
+class ao:
     def __init__(self):
         self.initialize_hardware()
         self.ax = 0
         self.ay = 0
 
     def __del__(self):
-        print("AOController object is being destroyed. Calling zero().")
-        self.zero()
+        #print("AOController object is being destroyed. Calling zero().")
+        #self.zero()
         self.close()  # Ensure hardware is shut down safely
 
 
@@ -43,10 +45,10 @@ class AOController:
         self.goto(0, 0)
 
     def clip_position(self, value):
-        MAX = 200  # Adjust as needed
+        MAX = 1000  # Adjust as needed
         return max(-MAX, min(MAX, value))
 
-    def calculate_motor_movements(angle_x, angle_y):
+    def calculate_motor_movements(self, angle_x, angle_y):
         angle_x_rad = math.radians(angle_x/360.0)
         angle_y_rad = math.radians(angle_y/360.0)
         
@@ -59,6 +61,9 @@ class AOController:
         m2 = 0.5 * tilt_x - 0.866 * tilt_y
         m3 = 0.5 * tilt_x + 0.866 * tilt_y
         
+        m1 = m1 * 30000.0
+        m2 = m2 * 30000.0
+        m3 = m3 * 30000.0
         # Normalize to ensure the sum of movements is zero
         avg_movement = (m1 + m2 + m3) / 3
         m1 -= avg_movement
@@ -72,12 +77,13 @@ class AOController:
         x = self.clip_position(x)
         y = self.clip_position(y)
 
-        m1, m2, m3 = calculate_motor_movements(x, y)
+        m1, m2, m3 = self.calculate_motor_movements(x, y)
+        #print(m1, m2, m3)
         move_low_level(m1, m2, m3)
         self.ax = self.ax + x
         self.ay = self.ay + y
 
-    def get_position(self):
+    def get_ao(self):
         return self.ax, self.ay
 
 
@@ -103,9 +109,37 @@ class AOController:
             time.sleep(0.02)
 
     def close(self):
-        # Shut down hardware safely
-        raise NotImplementedError("Implement safe hardware shutdown")
+        print("close")
 
     def move_hardware(self, x, y):
         # Implement actual hardware movement
         raise NotImplementedError("Implement hardware movement")
+
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: python script_name.py <x_position> <y_position>")
+        sys.exit(1)
+
+    try:
+        x = int(sys.argv[1])
+        y = int(sys.argv[2])
+    except ValueError:
+        print("Error: Both arguments must be integers.")
+        sys.exit(1)
+
+    controller = ao()
+    
+    try:
+        controller.goto(x, y)
+        print(f"Moved to position: ({x}, {y})")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        print("done")
+        #controller.close()
+
+if __name__ == "__main__":
+    main()
+
