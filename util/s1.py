@@ -38,9 +38,7 @@ def compute_hfd(image):
     radius = np.sqrt((idx - 1) / np.pi)
     
     # The HFD is twice the radius
-    hfd = 2 * radius
-    
-    return hfd
+    return 2 * radius
 
 class ImageNavigator(QtWidgets.QMainWindow):
     def __init__(self, images, filenames):
@@ -91,6 +89,7 @@ class ImageNavigator(QtWidgets.QMainWindow):
         self.updateImage()
         self.resize(1600, 1200)  # Set the window size to 1600x1200
 
+        # Add existing actions
         self.toggleFullScreenAction = QtWidgets.QAction("Toggle Full-Screen", self)
         self.toggleFullScreenAction.setShortcut("f")
         self.toggleFullScreenAction.triggered.connect(self.toggleFullScreen)
@@ -106,7 +105,21 @@ class ImageNavigator(QtWidgets.QMainWindow):
         self.showFilenameAction.triggered.connect(self.showFilename)
         self.addAction(self.showFilenameAction)
 
+        # Add new auto-scale action
+        self.autoScaleAction = QtWidgets.QAction("Auto Scale", self)
+        self.autoScaleAction.setShortcut("Ctrl+A")
+        self.autoScaleAction.triggered.connect(self.autoScale)
+        self.addAction(self.autoScaleAction)
+
         self.imageView.getImageItem().mouseClickEvent = self.click
+
+    def autoScale(self):
+        """Set image levels to 3% and 70% percentiles of the data."""
+        current_image = self.images[self.currentIndex]
+        min_level = np.percentile(current_image, 2)
+        max_level = np.percentile(current_image, 97)
+        self.imageView.setLevels(min_level, max_level)
+        self.histLevels = (min_level, max_level)
 
     def toggleFullScreen(self):
         if self.isFullScreen():
@@ -150,9 +163,6 @@ class ImageNavigator(QtWidgets.QMainWindow):
     def deleteFile(self):
         if self.currentIndex >= 0 and self.currentIndex < len(self.filenames):
             filename = self.filenames[self.currentIndex]
-            #reply = QtWidgets.QMessageBox.question(self, 'Delete File', f'Are you sure you want to delete {filename}?',
-            #                                       QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-            #if reply == QtWidgets.QMessageBox.Yes:
             try:
                 os.remove(filename)
                 self.images.pop(self.currentIndex)
