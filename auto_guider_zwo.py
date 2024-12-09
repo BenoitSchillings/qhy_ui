@@ -276,10 +276,18 @@ class UI:
         self.zoom_view = QtWidgets.QLabel(self.win)
         
         temp_widget.layout().addWidget(self.zoom_view)
-        self.mover = mover.Mover()
-        self.mover.setFixedSize(200,200)
 
-        temp_widget.layout().addWidget(self.mover)
+
+
+        # Create combined widget (mover + rotation controls)
+        self.combined_mover = mover.CombinedWidget()
+        self.combined_mover.setFixedSize(290, 230)  # Adjust size to accommodate rotation controls
+        self.mover = self.combined_mover.mover  # Keep reference to mover for existing code
+        temp_widget.layout().addWidget(self.combined_mover)
+        
+        self.statusBar.addPermanentWidget(temp_widget, 1)
+ 
+
 
 
         self.plt = pg.plot(title='dx')
@@ -377,7 +385,6 @@ class UI:
             self.update_state = 1
 
     def Bump_buttonClick(self):
-        #print("bump")
         rand_move()
 
 
@@ -422,7 +429,7 @@ class UI:
 
     def update_status(self):
         self.txt1.setText("FWHM= " + "min=" + "{:04f}".format(self.min) + " max=" + "{:04f}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
-        self.updateplot(self.ccx, self.ccy)
+        self.updateplot(self.cx, self.cy)
 
         if (self.cnt % 30 == 0):
             if not (sky is None):
@@ -497,7 +504,7 @@ class UI:
            
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                #sky.rate(rx * 4.0, ry * 4.0)
+                sky.rate(rx * 4.0, ry * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
            
             
@@ -569,7 +576,7 @@ if __name__ == "__main__":
     if (args.cam == -1):
         camera = fake_cam(-10, args.exp, args.gain, args.crop)
     else:
-        camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, False)
+        camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, True)
 
 
     guider = guider(sky, camera)

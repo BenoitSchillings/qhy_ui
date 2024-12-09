@@ -1,5 +1,7 @@
 import numpy as np
 from pprint import pprint
+from util import *
+import astropy.io.fits as fits
 
 class SerWriter(object):
 
@@ -100,27 +102,81 @@ class Ser(object):
 
 import cv2
 
+from scipy.ndimage import gaussian_filter
+
+def find_brightest_pixel(image: np.ndarray) -> tuple[int, int]:
+    """Returns (y, x) coordinates of brightest pixel after Gaussian filtering"""
+    filtered = gaussian_filter(image.astype(float), sigma=2)
+
+    return np.unravel_index(np.argmax(filtered), filtered.shape)
+
+def find_max_position(array_2d):
+    # Convert to numpy array if it isn't already
+    array_2d = np.array(array_2d)
+    
+    # Find the index of maximum value
+    index = np.argmax(array_2d)
+    
+    # Convert flat index to 2D coordinates
+    row, col = np.unravel_index(index, array_2d.shape)
+    
+    return row, col
+
+def fwhm(array):
+# Find the index of the maximum value
+        filtered = gaussian_filter(array.astype(float), sigma=2)
+
+        y, x = find_max_position(filtered)
+        EDGE = 20
+
+        sub = array[int(y)-EDGE:int(y)+EDGE, int(x)-EDGE:int(x)+EDGE].copy()
+
+
+
+        fwhm = fit_gauss_circular(extract_centered_subarray(sub, 21))
+        print(fwhm)
+        return fwhm
+
+
 if __name__ == "__main__":
     import sys
-    fid1.close()
+    
     
     
     fid = Ser(sys.argv[-1])
-    fid1 = SerWriter("test.ser")
-    fid1.set_sizes(fid.xsize,fid.ysize, 2)
+
 
     sum = fid.load_img(0) * 1.0
-    
-    for i in range(0, fid.count - 1):
+    ref_y, ref_x = find_brightest_pixel(sum)
+    cnt = 1.0
+    print(fid.count)
+    for i in range(111, fid.count - 1):
+        print(i)
         img = fid.load_img(i)
-        fid1.add_image(img)
-        sum = sum + img
-        v = sum / np.max(sum)
+        fwh = fwhm(img)
+        print("max = ", np.max(img), " fwhm = ", fwh)
+        if (fwh < 7.0):
+
+
+            y, x = find_brightest_pixel(img)
+            print(x,y)
+            if (x > 900):
+                dy = ref_y - y
+                dx = ref_x - x
+                shifted = np.roll(np.roll(img, dy, axis=0), dx, axis=1)
+                
+
+                #fid1.add_image(img)
+                sum = sum + shifted
+                v = sum / cnt
+                cnt = cnt + 1
+                print(cnt)
+                v = v / np.max(v)
+                if (cnt % 20 == 0):
+                    fits.writeto("stack.fits", 10000.0*v.astype(np.float32), overwrite=True)
+            cv2.imshow("image",450.0*(v - np.min(v)))
+            cv2.waitKey(1)
         
-        cv2.imshow("image", 50.0*v)
-        cv2.waitKey(1)
         
-        
-    fid.close()
-    fid1.close()
+
 

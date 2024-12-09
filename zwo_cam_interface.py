@@ -58,7 +58,8 @@ class zwoasi_wrapper():
             sys.exit(1)
 
         print(f"Open camera: {self.cam_info['Name']}")
-        
+        #self.cam.set_control_value(asi.ASI_BIN, 3)
+
         self.cam.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, 70)
         
         if self.live:

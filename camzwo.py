@@ -130,24 +130,17 @@ class UI:
         self.zoom_view = QtWidgets.QLabel(self.win)
         
         temp_widget.layout().addWidget(self.zoom_view)
-        self.mover = mover.Mover()
-        self.mover.setFixedSize(200,200)
+        #self.mover = mover.Mover()
+        #self.mover.setFixedSize(200,200)
 
-        temp_widget.layout().addWidget(self.mover)
-        self.plt = pg.plot(title='Dynamic Plotting with PyQtGraph')
-        self.plt_bufsize = 100
-        self.x = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
-        self.y = np.zeros(self.plt_bufsize, dtype=np.float64)
-        self.databuffer = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
-
-        temp_widget.layout().addWidget(self.plt)
-        self.plt.showGrid(x=True, y=True)
-        self.plt.setLabel('left', 'fwhm', 'pixels')
-        self.plt.setLabel('bottom', 'frame', 'f')
-        self.curve = self.plt.plot(self.x, self.y, pen=(255,0,0))
+        # Create combined widget (mover + rotation controls)
+        self.combined_mover = mover.CombinedWidget()
+        self.combined_mover.setFixedSize(450, 230)  # Adjust size to accommodate rotation controls
+        self.mover = self.combined_mover.mover  # Keep reference to mover for existing code
+        temp_widget.layout().addWidget(self.combined_mover)
         
         self.statusBar.addPermanentWidget(temp_widget, 1)
-
+ 
 
         rightlayout = QtWidgets.QWidget(self.win)
         rightlayout.setLayout(QtWidgets.QVBoxLayout())
@@ -233,7 +226,6 @@ class UI:
         return hdr
 
     def add_to_save(self, buffer):
-        #print("add")
         if (self.fits == 0):
             self.capture_file.add_image(self.array)
         else:
@@ -274,11 +266,6 @@ class UI:
         self.toggle_capture()
 
 
-    def updateplot(self, fwhm):
-        self.databuffer.append(fwhm)
-        self.y[:] = self.databuffer
-        self.curve.setData(self.x, self.y)
-        #self.app.processEvents()
 
 
     def clip(self, pos):
@@ -296,7 +283,7 @@ class UI:
 
     def update_status(self):
         self.txt1.setText("FWHM= " + "{:.2f}  ".format(self.fwhm) + "HDF= " + "{:.3f}  ".format(self.hdf) + "min=" + "{:04d}".format(self.min) + " max=" + "{:04d}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
-        self.updateplot(self.fwhm)
+        
 
         if (self.cnt % 1135 == 2):
             if not (sky is None):
@@ -351,7 +338,7 @@ class UI:
 
             return ((max - min) > (std*10))
 
-        print(type(self.array))
+        
         shape = self.array.shape
        
         #self.array[shape[0]//2-32:shape[0]//2+32, shape[1]//2-32:shape[1]//2+32] *= 2
@@ -370,7 +357,7 @@ class UI:
 
 # Convert the flattened index into a 2D index
         max_index_2d = np.unravel_index(max_index, self.array.shape)
-        print(max_index_2d)
+        
         #self.pos.setX(max_index_2d[1])
 
         #self.pos.setY(max_index_2d[0])
@@ -410,7 +397,7 @@ class UI:
             time.sleep(0.002)
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
-                #sky.rate(ry * 4.0, rx * 4.0)
+                sky.rate(rx * 4.0, ry * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
             
             

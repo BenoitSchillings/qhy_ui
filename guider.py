@@ -41,7 +41,7 @@ class guider:
         self.mount_dy1 = 0  # Mount Y movement for unit X command
         self.mount_dx2 = 0  # Mount X movement for unit Y command
         self.mount_dy2 = 0  # Mount Y movement for unit Y command
-        self.ao_limit = 12  # AO deflection limit before using mount correction
+        self.ao_limit = 32  # AO deflection limit before using mount correction
         self.last_bump_time = self.current_milli_time()
 
         self.load_state("guide.data")
@@ -263,7 +263,7 @@ class guider:
             if (dt > 4000) and (abs(ao_x) > self.ao_limit or (abs(ao_y) > self.ao_limit)):
                 # Calculate and apply mount correction
                 mount_x, mount_y = self.calculate_mount_correction(ao_x, ao_y)
-                self.fbump_mount(-0.3*mount_x, 0.2*mount_y)
+                self.fbump_mount(-0.4*mount_x, 0.4*mount_y)
                 self.last_bump_time = self.current_milli_time()
                 # Reset AO to center
                 #self.fmove_ao(0, 0)
