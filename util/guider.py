@@ -3,7 +3,6 @@ import pickle
 import time
 import numpy as np
 from pico import ao
-from util import LastNValues
 
 # Configure logging
 log = logging.getLogger(__name__)
