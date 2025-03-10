@@ -15,7 +15,7 @@ for idx in range(1, N):
     sum = fid.load_img(idx)
     if (idx % 100 == 0):
         print(idx)
-    fn = sys.argv[1] + str(idx) + ".fits"
+    fn = "data"  + str(idx) + ".fits"
     hdr = fits.header.Header()
     fits.writeto(fn, (sum).astype(np.float32), hdr, overwrite=True)
 
