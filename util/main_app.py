@@ -1,5 +1,6 @@
 
 import sys
+import argparse
 import numpy as np
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
@@ -14,7 +15,7 @@ import mover
 from util import compute_centroid_improved, HighValueFinder
 
 class MainApp(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, guider_exposure):
         super().__init__()
         self.setWindowTitle("Unified Astronomy Control")
         self.setGeometry(100, 100, 1600, 900)
@@ -33,6 +34,7 @@ class MainApp(QtWidgets.QMainWindow):
         self.focuser = None
         self.sky = None
         self.finder = HighValueFinder()
+        self.guider_exposure = guider_exposure
 
         # Create tabs
         self.create_imaging_tab()
@@ -132,6 +134,20 @@ class MainApp(QtWidgets.QMainWindow):
         self.connect_guider_button.clicked.connect(self.connect_guider)
         guiding_controls_layout.addWidget(self.connect_guider_button)
 
+        # Guider Exposure
+        self.guider_exp_label = QtWidgets.QLabel("Guider Exposure (s):")
+        self.guider_exp_input = QtWidgets.QLineEdit(str(self.guider_exposure))
+        self.guider_exp_input.editingFinished.connect(self.set_guider_exposure)
+        guiding_controls_layout.addWidget(self.guider_exp_label)
+        guiding_controls_layout.addWidget(self.guider_exp_input)
+
+        # Guider Gain
+        self.guider_gain_label = QtWidgets.QLabel("Guider Gain:")
+        self.guider_gain_input = QtWidgets.QLineEdit("300")
+        self.guider_gain_input.editingFinished.connect(self.set_guider_gain)
+        guiding_controls_layout.addWidget(self.guider_gain_label)
+        guiding_controls_layout.addWidget(self.guider_gain_input)
+
         self.start_guide_button = QtWidgets.QPushButton("Start Guiding")
         self.start_guide_button.clicked.connect(self.start_guiding)
         guiding_controls_layout.addWidget(self.start_guide_button)
@@ -150,9 +166,10 @@ class MainApp(QtWidgets.QMainWindow):
         # Guider image view and graphs
         guider_display_layout = QtWidgets.QVBoxLayout()
         self.guider_image_view = pg.ImageView()
-        guider_display_layout.addWidget(self.guider_image_view)
+        guider_display_layout.addWidget(self.guider_image_view, 3) # Give more space to image view
 
         # Graphs for dx/dy
+        graph_layout = QtWidgets.QHBoxLayout()
         self.plt_bufsize = 100
         self.x_data = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
         self.dx_buffer = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
@@ -161,12 +178,14 @@ class MainApp(QtWidgets.QMainWindow):
         self.guide_graph_dx = pg.PlotWidget(title="Guiding Error (dx)")
         self.guide_graph_dx.showGrid(x=True, y=True)
         self.guide_curve_dx = self.guide_graph_dx.plot(self.x_data, np.zeros(self.plt_bufsize, dtype=np.float64), pen=(255,0,0))
-        guider_display_layout.addWidget(self.guide_graph_dx)
+        graph_layout.addWidget(self.guide_graph_dx)
 
         self.guide_graph_dy = pg.PlotWidget(title="Guiding Error (dy)")
         self.guide_graph_dy.showGrid(x=True, y=True)
         self.guide_curve_dy = self.guide_graph_dy.plot(self.x_data, np.zeros(self.plt_bufsize, dtype=np.float64), pen=(255,0,0))
-        guider_display_layout.addWidget(self.guide_graph_dy)
+        graph_layout.addWidget(self.guide_graph_dy)
+        
+        guider_display_layout.addLayout(graph_layout, 1) # Give less space to graphs
 
         self.guiding_layout.addLayout(guider_display_layout, 4)
 
@@ -190,6 +209,8 @@ class MainApp(QtWidgets.QMainWindow):
 
     def connect_camera(self):
         try:
+            if self.camera:
+                self.camera.close()
             self.camera = zwoasi_wrapper(temp=float(self.temp_input.text()), exp=float(self.exp_input.text()), gain=int(self.gain_input.text()), crop=None, cam_name="ASI2600MM", live=False)
             self.log(f"Connected to camera: {self.camera.name()}")
             self.start_image_timer()
@@ -198,7 +219,9 @@ class MainApp(QtWidgets.QMainWindow):
 
     def connect_guider(self):
         try:
-            self.guider_camera = zwoasi_wrapper(temp=-10, exp=0.1, gain=300, crop=None, cam_name="ASI220MM", live=True)
+            if self.guider_camera:
+                self.guider_camera.close()
+            self.guider_camera = zwoasi_wrapper(temp=-10, exp=float(self.guider_exp_input.text()), gain=int(self.guider_gain_input.text()), crop=None, cam_name="ASI220MM", live=True)
             self.log(f"Connected to guider camera: {self.guider_camera.name()}")
             self.guider = guider(self.sky, self.guider_camera)
             self.start_guider_timer()
@@ -274,8 +297,8 @@ class MainApp(QtWidgets.QMainWindow):
         if self.camera:
             try:
                 exp = float(self.exp_input.text())
-                self.camera.SetExposure(exp)
-                self.log(f"Set exposure to {exp}s")
+                self.log(f"Setting exposure to {exp}s and restarting camera.")
+                self.connect_camera()
             except ValueError:
                 self.log("Invalid exposure value.")
 
@@ -283,8 +306,8 @@ class MainApp(QtWidgets.QMainWindow):
         if self.camera:
             try:
                 gain = int(self.gain_input.text())
-                self.camera.SetGain(gain)
-                self.log(f"Set gain to {gain}")
+                self.log(f"Setting gain to {gain} and restarting camera.")
+                self.connect_camera()
             except ValueError:
                 self.log("Invalid gain value.")
 
@@ -296,6 +319,24 @@ class MainApp(QtWidgets.QMainWindow):
                 self.log(f"Set target temperature to {temp}°C")
             except ValueError:
                 self.log("Invalid temperature value.")
+
+    def set_guider_exposure(self):
+        if self.guider_camera:
+            try:
+                exp = float(self.guider_exp_input.text())
+                self.log(f"Setting guider exposure to {exp}s and restarting guider camera.")
+                self.connect_guider()
+            except ValueError:
+                self.log("Invalid guider exposure value.")
+
+    def set_guider_gain(self):
+        if self.guider_camera:
+            try:
+                gain = int(self.guider_gain_input.text())
+                self.log(f"Setting guider gain to {gain} and restarting guider camera.")
+                self.connect_guider()
+            except ValueError:
+                self.log("Invalid guider gain value.")
 
     def move_focuser_to(self):
         if self.focuser:
@@ -348,7 +389,11 @@ class MainApp(QtWidgets.QMainWindow):
         self.log_text.append(f"{time.strftime('%H:%M:%S')} - {message}")
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Unified Astronomy Control')
+    parser.add_argument('--guider-exposure', type=float, default=0.1, help='Guider exposure time in seconds')
+    args = parser.parse_args()
+
     app = QtWidgets.QApplication(sys.argv)
-    main_win = MainApp()
+    main_win = MainApp(guider_exposure=args.guider_exposure)
     main_win.show()
     sys.exit(app.exec_())
