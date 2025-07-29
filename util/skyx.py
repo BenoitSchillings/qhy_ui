@@ -173,6 +173,38 @@ class sky6RASCOMTele(object):
                   """
         output = self.conn._send(command).splitlines()[0].split()      
         return output
+
+    def get_az_alt(self):
+        ''' Get the current Azimuth and Altitude
+        '''
+        command = """
+                  var Out;
+                  sky6RASCOMTele.GetAzAlt();
+                  Out = String(sky6RASCOMTele.dAz) + " " + String(sky6RASCOMTele.dAlt);
+                  """
+        output = self.conn._send(command).splitlines()[0].split()
+        return [float(output[0]), float(output[1])]
+
+    def is_connected(self):
+        ''' Returns True if the telescope is connected, False otherwise.
+        '''
+        command = "var Out = sky6RASCOMTele.IsConnected;"
+        output = self.conn._send(command).splitlines()[0]
+        return int(output) == 1
+
+    def is_parked(self):
+        ''' Returns True if the telescope is parked, False otherwise.
+        '''
+        command = "var Out = sky6RASCOMTele.IsParked;"
+        output = self.conn._send(command).splitlines()[0]
+        return int(output) == 1
+
+    def is_tracking(self):
+        ''' Returns True if the telescope is tracking, False otherwise.
+        '''
+        command = "var Out = sky6RASCOMTele.IsTracking;"
+        output = self.conn._send(command).splitlines()[0]
+        return int(output) == 1
     
     def park(self):
         command = """
