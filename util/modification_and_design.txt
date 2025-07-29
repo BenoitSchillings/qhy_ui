@@ -1,0 +1,120 @@
+# Modification and Design Documentation
+
+This document provides an overview of the new tools (`navigator.py`, `autocenter.py`) and the significant modifications made to existing modules (`skyx.py`, `zwo_cam_interface.py`).
+
+---
+
+## 1. Telescope Navigator (`navigator.py`)
+
+### 1.1. Purpose
+
+The Navigator is a graphical user interface (GUI) application designed for manual, intuitive control of the telescope mount. It functions as a virtual joystick, allowing the user to slew the telescope in any direction with variable, non-linear speed.
+
+### 1.2. Key Classes & Components
+
+*   **`NavigatorWindow`**: The main application class that builds the window, lays out all UI components, and handles user interactions. It is responsible for managing the settings and bookmark persistence logic.
+
+*   **`ArrowPadWidget`**: This is the core control element.
+    *   **Design:** It was initially designed as a 4-button arrow pad but was refactored into a more intuitive joystick-style control surface. The arrows are now purely for visual reference of the cardinal directions.
+    *   **Control Logic:** It captures mouse clicks within its circular area. The position of the click defines a motion vector (direction and magnitude) from the center. This vector is used to command the telescope.
+    *   **Speed Mapping:** The speed is non-linear. It follows a power-law curve (`speed = min + (max-min) * dist^2`), providing very fine control near the center (low speed) and rapidly increasing speed towards the edge. This allows for both precise adjustments and quick slews.
+
+*   **`TelescopeController`**: This class acts as an abstraction layer between the UI and the mount control script (`skyx.py`).
+    *   **State Management:** It is responsible for querying the mount's initial tracking rate before a slew and restoring it afterward, ensuring that custom tracking rates (e.g., for comets) are not lost.
+    *   **Simulation Mode:** If a connection to TheSkyX fails, this class automatically operates in a simulation mode, printing commands to the console instead of controlling hardware. This was a key design choice to allow for UI development and testing without requiring a live connection.
+
+### 1.3. Features & Design Choices
+
+*   **UI Framework:** PyQt5 was chosen for its robust and mature widget toolkit and its powerful signal/slot mechanism, which is ideal for event-driven applications like this.
+*   **Settings Persistence:** User settings (rotation, axis flips) and bookmarks are saved to human-readable `.json` files (`navigator_settings.json`, `navigator_bookmarks.json`). JSON was chosen for its simplicity and ease of debugging.
+*   **Bookmarking:** A full-featured bookmarking system was added, allowing users to save named locations (RA/Dec) and slew to them from a dynamic menu. This includes a fallback to dummy coordinates to allow testing the feature without a live telescope connection.
+
+---
+
+## 2. Auto-Center Tool (`autocenter.py`)
+
+### 2.1. Purpose
+
+This is an automated tool designed to solve two key problems: calibrating the camera sensor to the mount's movement and automatically centering the brightest star in the field of view.
+
+### 2.2. Core Logic & Design
+
+The application is built as a state machine with three primary modes: `idle`, `calibrating`, and `centering`.
+
+*   **State Machine:** A simple state variable (`self.mode`) controls the main loop's behavior, making the logic clear and manageable. Keyboard events (`K`, `C`, `I`) are used to transition between states.
+
+*   **Calibration (`K` key):**
+    *   **Method:** A robust, matrix-based calibration method was implemented, inspired by standard auto-guiding software.
+    *   **Process:**
+        1.  It first finds the brightest star.
+        2.  It jogs the mount in one direction (e.g., positive RA) for a fixed duration and measures the resulting pixel shift `(dx_ra, dy_ra)`.
+        3.  It returns to the start and repeats the process for the other axis (positive Dec), measuring the second pixel shift `(dx_dec, dy_dec)`.
+        4.  These two vectors form a 2x2 transformation matrix `M`.
+        5.  The application calculates the inverse of this matrix, `M^-1`.
+    *   **Result:** This inverse matrix is the core of the calibration. It provides a direct mathematical formula to convert any desired pixel shift `(px, py)` into the precise mount jog commands `(jog_ra, jog_dec)` needed to achieve it.
+    *   **Persistence:** The calculated matrix is saved to `autocenter_calibration.json` so the user does not need to recalibrate every session.
+
+*   **Centering (`C` key):**
+    *   **Algorithm:** Once calibrated, the centering process is a simple loop:
+        1.  Find the brightest star's current position `(star_x, star_y)`.
+        2.  Calculate the error vector to the center of the sensor: `(center_x - star_x, center_y - star_y)`.
+        3.  Multiply this error vector by the inverse calibration matrix `M^-1` to get the exact jog commands required to move the star to the center.
+        4.  Execute the jog commands.
+        5.  Repeat until the error is within a defined tolerance.
+
+*   **Image Display:** The `pyqtgraph` library was chosen for its high-performance image rendering. The display automatically adjusts the brightness levels (min/max) based on a small cutout around the brightest star, ensuring it is always clearly visible.
+
+---
+
+## 3. Modifications to Core Libraries
+
+### 3.1. `skyx.py`
+
+To support the new applications, the `sky6RASCOMTele` class was enhanced with several new methods based on the official TheSkyX documentation:
+
+*   **`get_rate()`**: Retrieves the current RA and Dec tracking rates from the mount.
+*   **`get_az_alt()`**: Retrieves the mount's current Azimuth and Altitude.
+*   **`is_connected()`, `is_parked()`, `is_tracking()`**: Properties to check the mount's status.
+*   **`stop()` (Correction):** The logic was corrected to properly restore the default sidereal tracking rate instead of simply halting motion.
+
+### 3.2. `zwo_cam_interface.py`
+
+To add more flexible camera control to the main application, binning support was added:
+
+*   A `binning` parameter was added to the `zwoasi_wrapper` constructor.
+*   A `SetBinning(binning)` method was created to send the binning command to the camera.
+
+---
+
+## 4. Satellite Tracker (`satellite_tracker.py`)
+
+### 4.1. Purpose
+
+This is an advanced application designed to track satellites in real-time. It uses a closed-loop feedback system to dynamically adjust the mount's tracking rate to keep the satellite centered.
+
+### 4.2. Core Logic & Design
+
+*   **Control System:** The application is built around a **PID (Proportional-Integral-Derivative) Controller**. This is a classic control theory approach that continuously corrects the mount's speed based on the observed error.
+    *   The **"setpoint"** (target) is the satellite's predicted RA/Dec coordinate for the current moment in time.
+    *   The **"process variable"** (actual) is the telescope's RA/Dec as read back from the mount.
+    *   The PID controller calculates the error between these two positions and outputs a **rate correction** that is sent to the mount.
+
+*   **Satellite Position Prediction:**
+    *   **TLE Data:** The application automatically fetches the latest Two-Line Element (TLE) data for a target satellite from CelesTrak.
+    *   **`skyfield` Library:** The industry-standard `skyfield` library is used to parse the TLE data and propagate the satellite's orbit, allowing for highly accurate position predictions for any given time.
+
+*   **Main Loop:** The core of the application is a high-frequency loop (running ~5 times per second) that:
+    1.  Predicts the satellite's current position.
+    2.  Reads the mount's actual position.
+    3.  Feeds the error into two PID controllers (one for RA, one for Dec).
+    4.  Sends the new, corrected tracking rates to the mount via the `skyx.rate()` command.
+
+### 4.3. Current Status & Resume Point
+
+The foundational code for the satellite tracker is complete. The application can successfully fetch TLEs, predict a satellite's path, and run the main PID control loop.
+
+**The critical next step is real-world testing and tuning.** The initial PID gain values (`Kp`, `Ki`, `Kd`) are just educated guesses. To make the tracker functional, these values must be carefully tuned with the actual telescope mount to achieve stable, accurate tracking without oscillation or lag.
+
+**To resume work, the next session should focus on:**
+1.  Implementing a method to get the observer's true location from TheSkyX (currently placeholder).
+2.  Beginning the iterative process of tuning the PID gains.
