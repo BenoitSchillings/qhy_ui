@@ -5,7 +5,7 @@ import zwoasi as asi
 import sys
 
 class zwoasi_wrapper():
-    def __init__(self, temp, exp, gain, crop, cam_name, live=False):
+    def __init__(self, temp, exp, gain, crop, cam_name, binning=1, live=False):
         self.sdk = asi
         self.live = live
         self.mode = 1 if live else 0
@@ -14,6 +14,7 @@ class zwoasi_wrapper():
         self.gain = gain
         self.temp = temp
         self.crop = crop
+        self.binning = binning
         self.cam = None
         self.dt = exp
         self.start_time = 0
@@ -26,6 +27,7 @@ class zwoasi_wrapper():
         self.SetTemperature(temp)
         self.SetExposure(self.exposureMS)
         self.SetGain(gain)
+        self.SetBinning(self.binning)
         self.SetUSB(70)
         self.SetFanSpeed(60)
         self.SetSpeed()
@@ -110,6 +112,11 @@ class zwoasi_wrapper():
         self.gain = gain
         self.cam.set_control_value(asi.ASI_GAIN, int(gain))
         print(f"Set gain to {self.cam.get_control_value(asi.ASI_GAIN)[0]}")
+
+    def SetBinning(self, binning):
+        self.binning = binning
+        self.cam.set_control_value(asi.ASI_BIN, int(binning))
+        print(f"Set binning to {self.cam.get_control_value(asi.ASI_BIN)[0]}")
 
     def SetOffset(self, offset):
         self.cam.set_control_value(asi.ASI_OFFSET, int(offset))

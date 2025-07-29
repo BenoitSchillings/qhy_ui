@@ -14,7 +14,7 @@ import mover
 from util import compute_centroid_improved, HighValueFinder
 
 class MainApp(QtWidgets.QMainWindow):
-    def __init__(self, guider_exposure):
+    def __init__(self, args):
         super().__init__()
         self.setWindowTitle("Unified Astronomy Control")
         self.setGeometry(100, 100, 1600, 900)
@@ -29,6 +29,9 @@ class MainApp(QtWidgets.QMainWindow):
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.layout.addWidget(self.tabs)
 
+        # Store args
+        self.args = args
+
         # Initialize components
         self.camera = None
         self.guider_camera = None
@@ -36,12 +39,15 @@ class MainApp(QtWidgets.QMainWindow):
         self.focuser = None
         self.sky = None
         self.finder = HighValueFinder()
-        self.guider_exposure = guider_exposure
 
         # Create tabs
         self.create_imaging_tab()
         self.create_guiding_tab()
         self.create_system_tab()
+
+        # Auto-connect if requested
+        if self.args.connect_all:
+            self.connect_all_devices()
 
         # Status timer
         self.status_timer = QtCore.QTimer()
@@ -57,27 +63,34 @@ class MainApp(QtWidgets.QMainWindow):
         controls_layout = QtWidgets.QVBoxLayout()
         
         # Camera selection
-        self.connect_button = QtWidgets.QPushButton("Connect ASI2600MM")
+        self.connect_button = QtWidgets.QPushButton(f"Connect {self.args.cam_name}")
         self.connect_button.clicked.connect(self.connect_camera)
         controls_layout.addWidget(self.connect_button)
 
         # Exposure
         self.exp_label = QtWidgets.QLabel("Exposure (s):")
-        self.exp_input = QtWidgets.QLineEdit("0.1")
+        self.exp_input = QtWidgets.QLineEdit(str(self.args.exp))
         self.exp_input.editingFinished.connect(self.set_exposure)
         controls_layout.addWidget(self.exp_label)
         controls_layout.addWidget(self.exp_input)
 
         # Gain
         self.gain_label = QtWidgets.QLabel("Gain:")
-        self.gain_input = QtWidgets.QLineEdit("100")
+        self.gain_input = QtWidgets.QLineEdit(str(self.args.gain))
         self.gain_input.editingFinished.connect(self.set_gain)
         controls_layout.addWidget(self.gain_label)
         controls_layout.addWidget(self.gain_input)
+
+        # Binning
+        self.bin_label = QtWidgets.QLabel("Binning:")
+        self.bin_input = QtWidgets.QLineEdit(str(self.args.binning))
+        self.bin_input.editingFinished.connect(self.set_binning)
+        controls_layout.addWidget(self.bin_label)
+        controls_layout.addWidget(self.bin_input)
         
         # Temperature
         self.temp_label = QtWidgets.QLabel("Target Temp (°C):")
-        self.temp_input = QtWidgets.QLineEdit("-10")
+        self.temp_input = QtWidgets.QLineEdit(str(self.args.temp))
         self.temp_input.editingFinished.connect(self.set_temperature)
         controls_layout.addWidget(self.temp_label)
         controls_layout.addWidget(self.temp_input)
@@ -132,23 +145,30 @@ class MainApp(QtWidgets.QMainWindow):
         # Guiding controls
         guiding_controls_layout = QtWidgets.QVBoxLayout()
 
-        self.connect_guider_button = QtWidgets.QPushButton("Connect Guider")
+        self.connect_guider_button = QtWidgets.QPushButton(f"Connect {self.args.guider_cam_name}")
         self.connect_guider_button.clicked.connect(self.connect_guider)
         guiding_controls_layout.addWidget(self.connect_guider_button)
 
         # Guider Exposure
         self.guider_exp_label = QtWidgets.QLabel("Guider Exposure (s):")
-        self.guider_exp_input = QtWidgets.QLineEdit(str(self.guider_exposure))
+        self.guider_exp_input = QtWidgets.QLineEdit(str(self.args.guider_exposure))
         self.guider_exp_input.editingFinished.connect(self.set_guider_exposure)
         guiding_controls_layout.addWidget(self.guider_exp_label)
         guiding_controls_layout.addWidget(self.guider_exp_input)
 
         # Guider Gain
         self.guider_gain_label = QtWidgets.QLabel("Guider Gain:")
-        self.guider_gain_input = QtWidgets.QLineEdit("300")
+        self.guider_gain_input = QtWidgets.QLineEdit(str(self.args.guider_gain))
         self.guider_gain_input.editingFinished.connect(self.set_guider_gain)
         guiding_controls_layout.addWidget(self.guider_gain_label)
         guiding_controls_layout.addWidget(self.guider_gain_input)
+
+        # Guider Binning
+        self.guider_bin_label = QtWidgets.QLabel("Guider Binning:")
+        self.guider_bin_input = QtWidgets.QLineEdit(str(self.args.guider_binning))
+        self.guider_bin_input.editingFinished.connect(self.set_guider_binning)
+        guiding_controls_layout.addWidget(self.guider_bin_label)
+        guiding_controls_layout.addWidget(self.guider_bin_input)
 
         self.start_guide_button = QtWidgets.QPushButton("Start Guiding")
         self.start_guide_button.clicked.connect(self.start_guiding)
@@ -209,11 +229,18 @@ class MainApp(QtWidgets.QMainWindow):
         self.log_text.setReadOnly(True)
         self.system_layout.addWidget(self.log_text)
 
+    def connect_all_devices(self):
+        self.log("Attempting to connect all devices...")
+        self.connect_camera()
+        self.connect_guider()
+        self.connect_focuser()
+        self.connect_skyx()
+
     def connect_camera(self):
         try:
             if self.camera:
                 self.camera.close()
-            self.camera = zwoasi_wrapper(temp=float(self.temp_input.text()), exp=float(self.exp_input.text()), gain=int(self.gain_input.text()), crop=None, cam_name="ASI2600MM", live=False)
+            self.camera = zwoasi_wrapper(temp=float(self.temp_input.text()), exp=float(self.exp_input.text()), gain=int(self.gain_input.text()), binning=int(self.bin_input.text()), crop=None, cam_name=self.args.cam_name, live=False)
             self.log(f"Connected to camera: {self.camera.name()}")
             self.start_image_timer()
         except Exception as e:
@@ -223,7 +250,7 @@ class MainApp(QtWidgets.QMainWindow):
         try:
             if self.guider_camera:
                 self.guider_camera.close()
-            self.guider_camera = zwoasi_wrapper(temp=-10, exp=float(self.guider_exp_input.text()), gain=int(self.guider_gain_input.text()), crop=None, cam_name="ASI220MM", live=True)
+            self.guider_camera = zwoasi_wrapper(temp=-10, exp=float(self.guider_exp_input.text()), gain=int(self.guider_gain_input.text()), binning=int(self.guider_bin_input.text()), crop=None, cam_name=self.args.guider_cam_name, live=True)
             self.log(f"Connected to guider camera: {self.guider_camera.name()}")
             self.guider = guider(self.sky, self.guider_camera)
             self.start_guider_timer()
@@ -313,6 +340,15 @@ class MainApp(QtWidgets.QMainWindow):
             except ValueError:
                 self.log("Invalid gain value.")
 
+    def set_binning(self):
+        if self.camera:
+            try:
+                binning = int(self.bin_input.text())
+                self.log(f"Setting binning to {binning}.")
+                self.camera.SetBinning(binning)
+            except ValueError:
+                self.log("Invalid binning value.")
+
     def set_temperature(self):
         if self.camera:
             try:
@@ -339,6 +375,15 @@ class MainApp(QtWidgets.QMainWindow):
                 self.guider_camera.SetGain(gain)
             except ValueError:
                 self.log("Invalid guider gain value.")
+
+    def set_guider_binning(self):
+        if self.guider_camera:
+            try:
+                binning = int(self.guider_bin_input.text())
+                self.log(f"Setting guider binning to {binning}.")
+                self.guider_camera.SetBinning(binning)
+            except ValueError:
+                self.log("Invalid guider binning value.")
 
     def move_focuser_to(self):
         if self.focuser:
@@ -398,10 +443,26 @@ class MainApp(QtWidgets.QMainWindow):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Unified Astronomy Control')
+    
+    # Imaging Camera Arguments
+    parser.add_argument('--exp', type=float, default=0.1, help='Imaging camera exposure time in seconds')
+    parser.add_argument('--gain', type=int, default=100, help='Imaging camera gain')
+    parser.add_argument('--binning', type=int, default=1, help='Imaging camera binning')
+    parser.add_argument('--temp', type=float, default=-10.0, help='Imaging camera target temperature in Celsius')
+    parser.add_argument('--cam-name', type=str, default="ASI2600MM", help='Name of the imaging camera')
+
+    # Guider Camera Arguments
     parser.add_argument('--guider-exposure', type=float, default=0.1, help='Guider exposure time in seconds')
+    parser.add_argument('--guider-gain', type=int, default=300, help='Guider camera gain')
+    parser.add_argument('--guider-binning', type=int, default=1, help='Guider camera binning')
+    parser.add_argument('--guider-cam-name', type=str, default="ASI220MM", help='Name of the guider camera')
+
+    # Connection Arguments
+    parser.add_argument('--connect-all', action='store_true', help='Attempt to connect to all devices on startup')
+
     args = parser.parse_args()
 
     app = QtWidgets.QApplication(sys.argv)
-    main_win = MainApp(guider_exposure=args.guider_exposure)
+    main_win = MainApp(args=args)
     main_win.show()
     sys.exit(app.exec_())
