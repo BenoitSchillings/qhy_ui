@@ -4,7 +4,8 @@ import math
 import json
 import os
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel, QSizePolicy
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSlider, QLabel, QSizePolicy,
+    QMenuBar, QAction, QInputDialog
 )
 from PyQt5.QtGui import QPainter, QColor, QPolygonF, QBrush, QPen, QFont, QTransform
 from PyQt5.QtCore import Qt, QPointF, pyqtSignal
@@ -40,6 +41,29 @@ class TelescopeController:
                 self.simulated = True
         else:
             print("TheSkyX module not found. Starting in Simulation Mode.")
+
+    def get_current_ra_dec(self):
+        """Gets the current RA and Dec from the telescope."""
+        if self.simulated:
+            print("SIM: Returning dummy RA/Dec.")
+            return 10.0, 20.0 # Return dummy coordinates for simulation
+        else:
+            try:
+                ra, dec = self.telescope.GetRaDec()
+                return float(ra), float(dec)
+            except Exception as e:
+                print(f"Error getting RA/Dec: {e}. Returning fake coordinates for testing.")
+                return 0.0, 0.0
+
+    def goto_ra_dec(self, ra, dec):
+        """Commands the telescope to slew to a specific RA/Dec."""
+        if self.simulated:
+            print(f"SIM: Slewing to RA={ra}, Dec={dec}")
+        else:
+            try:
+                self.telescope.goto(ra, dec)
+            except Exception as e:
+                print(f"Error during GoTo slew: {e}")
 
     def store_current_rate(self):
         """Reads and stores the telescope's current tracking rate."""
@@ -267,12 +291,11 @@ class NavigatorWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Telescope Navigator")
-        self.setGeometry(100, 100, 500, 600)
+        self.setGeometry(100, 100, 500, 650) # Increased height for menu bar
         
-        # Define settings file path
-        # Assumes the script is in the same directory as the settings file
         self.settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'navigator_settings.json')
-
+        self.bookmarks_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'navigator_bookmarks.json')
+        self.bookmarks = []
 
         self.setStyleSheet("""
             QWidget {
@@ -318,9 +341,24 @@ class NavigatorWindow(QWidget):
                 font-size: 16px;
                 font-family: 'monospace';
             }
+            QMenuBar {
+                background-color: #34495E;
+                color: #ECF0F1;
+            }
+            QMenuBar::item:selected {
+                background-color: #5DADE2;
+            }
+            QMenu {
+                background-color: #34495E;
+                color: #ECF0F1;
+            }
+            QMenu::item:selected {
+                background-color: #5DADE2;
+            }
         """)
 
         main_layout = QVBoxLayout(self)
+        main_layout.setMenuBar(self._create_menu_bar())
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
 
@@ -359,6 +397,45 @@ class NavigatorWindow(QWidget):
         self.arrow_pad.stop_requested.connect(self.on_stop_requested)
         
         self.load_settings()
+        self.load_bookmarks()
+
+    def _create_menu_bar(self):
+        menu_bar = QMenuBar(self)
+        self.bookmarks_menu = menu_bar.addMenu("&Bookmarks")
+        
+        add_action = QAction("&Add Bookmark...", self)
+        add_action.triggered.connect(self.add_bookmark)
+        self.bookmarks_menu.addAction(add_action)
+        
+        self.bookmarks_menu.addSeparator()
+        
+        return menu_bar
+
+    def rebuild_bookmarks_menu(self):
+        # Clear existing bookmark actions, skipping the first two items ("Add" and separator)
+        for action in self.bookmarks_menu.actions()[2:]:
+            self.bookmarks_menu.removeAction(action)
+
+        for bookmark in self.bookmarks:
+            action = QAction(bookmark['name'], self)
+            action.triggered.connect(lambda checked, b=bookmark: self.goto_bookmark(b))
+            self.bookmarks_menu.addAction(action)
+
+    def add_bookmark(self):
+        name, ok = QInputDialog.getText(self, "Add Bookmark", "Enter a name for the current location:")
+        if ok and name:
+            ra, dec = self.controller.get_current_ra_dec()
+            if ra is not None and dec is not None:
+                self.bookmarks.append({'name': name, 'ra': ra, 'dec': dec})
+                self.save_bookmarks()
+                self.rebuild_bookmarks_menu()
+                self.update_status_label(status_text=f"Bookmark '{name}' added.")
+
+    def goto_bookmark(self, bookmark):
+        ra = bookmark['ra']
+        dec = bookmark['dec']
+        self.controller.goto_ra_dec(ra, dec)
+        self.update_status_label(status_text=f"Slewing to {bookmark['name']}...")
 
     def on_rotation_changed(self, value):
         self.arrow_pad.set_rotation(value)
@@ -375,16 +452,18 @@ class NavigatorWindow(QWidget):
 
     def on_vector_move_requested(self, d_ra, d_dec):
         self.controller.move(d_ra, d_dec)
-        self.update_status_label(d_ra, d_dec)
+        self.update_status_label(d_ra=d_ra, d_dec=d_dec)
 
     def on_stop_requested(self):
         self.controller.stop()
         self.update_status_label()
 
-    def update_status_label(self, d_ra=0.0, d_dec=0.0):
+    def update_status_label(self, d_ra=0.0, d_dec=0.0, status_text=None):
         mode = "REAL" if not self.controller.simulated else "SIMULATION"
         
-        if d_ra == 0.0 and d_dec == 0.0:
+        if status_text:
+            action = status_text
+        elif d_ra == 0.0 and d_dec == 0.0:
             action = "IDLE"
         else:
             action = f"SLEWING (RA: {d_ra:+.2f}\", Dec: {d_dec:+.2f}\")"
@@ -416,6 +495,24 @@ class NavigatorWindow(QWidget):
                 json.dump(settings, f, indent=4)
         except IOError:
             print("Error: Could not save settings to file.")
+
+    def load_bookmarks(self):
+        try:
+            with open(self.bookmarks_file, 'r') as f:
+                self.bookmarks = json.load(f)
+                self.rebuild_bookmarks_menu()
+                print("Bookmarks loaded.")
+        except FileNotFoundError:
+            print("Bookmarks file not found. Starting with an empty list.")
+        except (json.JSONDecodeError, TypeError):
+            print("Error reading bookmarks file. Starting with an empty list.")
+
+    def save_bookmarks(self):
+        try:
+            with open(self.bookmarks_file, 'w') as f:
+                json.dump(self.bookmarks, f, indent=4)
+        except IOError:
+            print("Error: Could not save bookmarks to file.")
 
     def closeEvent(self, event):
         self.save_settings()
