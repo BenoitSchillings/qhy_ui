@@ -1,4 +1,3 @@
-
 import sys
 import argparse
 import numpy as np
@@ -25,6 +24,9 @@ class MainApp(QtWidgets.QMainWindow):
         self.layout = QtWidgets.QVBoxLayout(self.central_widget)
 
         self.tabs = QtWidgets.QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.setMovable(True)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
         self.layout.addWidget(self.tabs)
 
         # Initialize components
@@ -259,13 +261,13 @@ class MainApp(QtWidgets.QMainWindow):
         if self.camera:
             frame = self.camera.get_frame()
             if frame is not None:
-                self.image_view.setImage(np.rot90(frame), autoLevels=True)
+                self.image_view.setImage(np.rot90(frame), autoLevels=True, autoRange=False)
 
     def update_guider(self):
         if self.guider_camera and self.guider:
             frame = self.guider_camera.get_frame()
             if frame is not None:
-                self.guider_image_view.setImage(np.rot90(frame), autoLevels=True)
+                self.guider_image_view.setImage(np.rot90(frame), autoLevels=True, autoRange=False)
                 
                 max_y, max_x, val = self.finder.find_high_value_element(frame[32:-32, 32:-32])
                 cy, cx, cv = compute_centroid_improved(frame, max_y + 32, max_x + 32)
@@ -297,8 +299,8 @@ class MainApp(QtWidgets.QMainWindow):
         if self.camera:
             try:
                 exp = float(self.exp_input.text())
-                self.log(f"Setting exposure to {exp}s and restarting camera.")
-                self.connect_camera()
+                self.log(f"Setting exposure to {exp}s.")
+                self.camera.SetExposure(exp * 1000)
             except ValueError:
                 self.log("Invalid exposure value.")
 
@@ -306,8 +308,8 @@ class MainApp(QtWidgets.QMainWindow):
         if self.camera:
             try:
                 gain = int(self.gain_input.text())
-                self.log(f"Setting gain to {gain} and restarting camera.")
-                self.connect_camera()
+                self.log(f"Setting gain to {gain}.")
+                self.camera.SetGain(gain)
             except ValueError:
                 self.log("Invalid gain value.")
 
@@ -324,8 +326,8 @@ class MainApp(QtWidgets.QMainWindow):
         if self.guider_camera:
             try:
                 exp = float(self.guider_exp_input.text())
-                self.log(f"Setting guider exposure to {exp}s and restarting guider camera.")
-                self.connect_guider()
+                self.log(f"Setting guider exposure to {exp}s.")
+                self.guider_camera.SetExposure(exp * 1000)
             except ValueError:
                 self.log("Invalid guider exposure value.")
 
@@ -333,8 +335,8 @@ class MainApp(QtWidgets.QMainWindow):
         if self.guider_camera:
             try:
                 gain = int(self.guider_gain_input.text())
-                self.log(f"Setting guider gain to {gain} and restarting guider camera.")
-                self.connect_guider()
+                self.log(f"Setting guider gain to {gain}.")
+                self.guider_camera.SetGain(gain)
             except ValueError:
                 self.log("Invalid guider gain value.")
 
@@ -387,6 +389,12 @@ class MainApp(QtWidgets.QMainWindow):
 
     def log(self, message):
         self.log_text.append(f"{time.strftime('%H:%M:%S')} - {message}")
+
+    def close_tab(self, index):
+        widget = self.tabs.widget(index)
+        if widget:
+            widget.deleteLater()
+        self.tabs.removeTab(index)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Unified Astronomy Control')

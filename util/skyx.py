@@ -230,12 +230,21 @@ class sky6RASCOMTele(object):
         print(output)
         time.sleep(0.1)
 
-   
+    def get_rate(self):
+        ''' Get the current RA and Dec tracking rates
+        '''
+        command = """
+                  var Out;
+                  Out = String(sky6RASCOMTele.dRaRate) + " " + String(sky6RASCOMTele.dDecRate);
+                  """
+        output = self.conn._send(command).splitlines()[0].split()
+        return [float(output[0]), float(output[1])]
+
     def stop(self):
-        # Stop tracking
+        # Stop tracking by reverting to default sidereal rate
         command = """
                 var Out = "";
-                sky6RASCOMTele.SetTracking(0, 1, 15, 0);
+                sky6RASCOMTele.SetTracking(1, 1, 0, 0);
                 """
         output = self.conn._send(command).splitlines()
         print(output)
