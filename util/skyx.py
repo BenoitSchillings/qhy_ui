@@ -365,5 +365,55 @@ class sky6RASCOMTele(object):
             #print(output)
 
 
+#-------------------------------------------------------------------------
+
+class sky6FilterWheel(object):
+    ''' Class to implement the sky6FilterWheel script class
+    '''
+    def __init__(self, host="localhost", port=3040):
+        ''' Define connection
+        '''
+        self.conn = SkyXConnection(host, port)
+
+    def connect(self):
+        ''' Connect to the filter wheel
+        '''
+        command = "sky6FilterWheel.Connect();"
+        self.conn._send(command)
+        return True
+
+    def disconnect(self):
+        ''' Disconnect from the filter wheel
+        '''
+        command = "sky6FilterWheel.Disconnect();"
+        self.conn._send(command)
+        return True
+
+    def goto(self, position):
+        ''' Move to a specific filter position
+        '''
+        command = f"sky6FilterWheel.goto({position});"
+        self.conn._send(command)
+        return True
+
+    def get_filter_name(self, position):
+        ''' Get the name of the filter at a given position
+        '''
+        command = f"var Out = sky6FilterWheel.FilterName({position});"
+        return self.conn._send(command).splitlines()[0]
+
+    def get_count(self):
+        ''' Get the total number of filter slots
+        '''
+        command = "var Out = sky6FilterWheel.Count;"
+        return int(self.conn._send(command).splitlines()[0])
+
+    def get_position(self):
+        ''' Get the current filter position
+        '''
+        command = "var Out = sky6FilterWheel.Position;"
+        return int(self.conn._send(command).splitlines()[0])
+
+
 
 
