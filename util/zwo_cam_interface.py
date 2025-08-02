@@ -5,7 +5,7 @@ import zwoasi as asi
 import sys
 
 class zwoasi_wrapper():
-    def __init__(self, temp, exp, gain, crop, cam_name, binning=1, live=False):
+    def __init__(self, temp, exp, gain, crop, cam_name, binning=1, live=True):
         self.sdk = asi
         self.live = live
         self.mode = 1 if live else 0
@@ -115,8 +115,8 @@ class zwoasi_wrapper():
 
     def SetBinning(self, binning):
         self.binning = binning
-        self.cam.set_control_value(asi.ASI_BIN, int(binning))
-        print(f"Set binning to {self.cam.get_control_value(asi.ASI_BIN)[0]}")
+        #self.cam.set_control_value(asi.ASI_BIN, int(binning))
+        #print(f"Set binning to {self.cam.get_control_value(asi.ASI_BIN)[0]}")
 
     def SetOffset(self, offset):
         self.cam.set_control_value(asi.ASI_OFFSET, int(offset))
@@ -300,9 +300,7 @@ class zwoasi_wrapper():
 
     def GetLiveFrame(self):
         try:
-            #print("live0")
             buffer = self.cam.capture_video_frame(timeout=1300)
-            #print("live1", buffer)
             # Convert bytearray to numpy array
             if self.bpp == 8:
                 img = np.frombuffer(buffer, dtype=np.uint8)
@@ -315,6 +313,7 @@ class zwoasi_wrapper():
             self.imgdata = img
             return self.imgdata
         except asi.ZWO_Error:
+            print("start") 
             self.cam.start_video_capture()
             return None
 

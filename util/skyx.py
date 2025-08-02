@@ -270,6 +270,7 @@ class sky6RASCOMTele(object):
                   Out = String(sky6RASCOMTele.dRaRate) + " " + String(sky6RASCOMTele.dDecRate);
                   """
         output = self.conn._send(command).splitlines()[0].split()
+        print(output) 
         return [float(output[0]), float(output[1])]
 
     def stop(self):

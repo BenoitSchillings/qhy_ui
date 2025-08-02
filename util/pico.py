@@ -9,9 +9,9 @@ m3_fwd, m3_back = 11700, -13050
 
 def scale_motor_value(value, forward_max, backward_max):
     if value >= 0:
-        return int((value / 10000) * forward_max)
+        return int(round((0.1*value / 10000) * forward_max))
     else:
-        return int((value / 10000) * abs(backward_max))
+        return int(round((0.1*value / 10000) * abs(backward_max)))
 
 def move_low_level(v1, v2, v3):
     scaled_v1 = scale_motor_value(v1, m1_fwd, m1_back)

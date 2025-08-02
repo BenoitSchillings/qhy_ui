@@ -66,17 +66,7 @@ class TelescopeController:
                 print(f"Error during GoTo slew: {e}")
 
     def store_current_rate(self):
-        """Reads and stores the telescope's current tracking rate."""
-        if self.simulated:
-            print("SIM: Storing original rate (defaulting to sidereal).")
-            self.original_rate = [15.0, 0.0]
-        else:
-            try:
-                self.original_rate = self.telescope.get_rate()
-                print(f"REAL: Stored original rate: {self.original_rate}")
-            except Exception as e:
-                print(f"Error getting rate: {e}. Defaulting to sidereal.")
-                self.original_rate = [15.0, 0.0]
+        self.original_rate = [0.0, 0.0]
 
     def move(self, d_ra_offset, d_dec_offset):
         """
@@ -246,14 +236,6 @@ class ArrowPadWidget(QWidget):
 
         final_d_ra = transformed_vec.x()
         final_d_dec = -transformed_vec.y() # Flip Y for telescope coordinates
-
-        # Snap to axis
-        snap_threshold = 5.0
-        click_angle_deg = math.degrees(math.atan2(vec.y(), vec.x()))
-        if -snap_threshold < click_angle_deg < snap_threshold or 180 - snap_threshold < abs(click_angle_deg) < 180 + snap_threshold:
-            final_d_dec = 0
-        elif 90 - snap_threshold < abs(click_angle_deg) < 90 + snap_threshold:
-            final_d_ra = 0
 
         self.vector_move_requested.emit(final_d_ra, final_d_dec)
         self.update()
