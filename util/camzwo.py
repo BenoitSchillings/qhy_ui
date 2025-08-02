@@ -524,8 +524,10 @@ class UI:
         #self.array[195, 1992] = self.array[195, 1993]
         #self.array[1429, 1724] = self.array[1430, 1724]
 
-        filtered_array = self.array
-        max_index = np.argmax(filtered_array)
+        # Apply a Gaussian blur to find the brightest "area" instead of a single pixel.
+        # This helps to ignore hot pixels and cosmic rays. A 5x5 kernel is a good starting point.
+        blurred_array = cv2.GaussianBlur(self.array, (5, 5), 0)
+        max_index = np.argmax(blurred_array)
 
 # Convert the flattened index into a 2D index
         max_index_2d = np.unravel_index(max_index, self.array.shape)
@@ -609,7 +611,10 @@ if __name__ == "__main__":
 
     ipc.set_val("bump", [1.1,1.1])
 
-    camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, 1, True)
+    # Use live video mode for short exposures, single-frame mode for long exposures
+    live_mode = args.exp < 1.0
+    log.info(f"Exposure time is {args.exp}s. Starting in {'Live Mode' if live_mode else 'Single-Frame Mode'}.")
+    camera = zwoasi_wrapper(-10, args.exp, args.gain, args.crop, args.cam, 1, live_mode)
 
     ui = UI(args, camera.size_x(), camera.size_y(), args.count, args.auto, args.fits)
     
