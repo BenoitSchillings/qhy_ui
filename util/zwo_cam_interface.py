@@ -98,7 +98,9 @@ class zwoasi_wrapper():
 
     def start(self):
         if self.live:
-            self.cam.start_video_capture()
+            # In live mode, video capture is already started by __init__.
+            # This method is only for single-frame mode timing.
+            pass
         else:
             self.start_time = time.time()
         print(f"Camera started in {'live' if self.live else 'single frame'} mode")
