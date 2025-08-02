@@ -543,8 +543,16 @@ def compute_centroid_improved(array, x, y, initial_size=32, final_size=16, itera
         # Refine using weighted centroid
         rows, cols = np.where(binary)
         values = sub_array[rows, cols]
-        centroid_row = np.sum(rows * values) / np.sum(values)
-        centroid_col = np.sum(cols * values) / np.sum(values)
+        
+        # --- FIX: Prevent division by zero on saturated images ---
+        sum_of_values = np.sum(values)
+        if sum_of_values == 0:
+            # If all values are zero (e.g., saturated star after background subtraction),
+            # return the geometric center of the sub-array as a fallback.
+            return size // 2, size // 2
+
+        centroid_row = np.sum(rows * values) / sum_of_values
+        centroid_col = np.sum(cols * values) / sum_of_values
         
         return centroid_col, centroid_row
 
