@@ -90,10 +90,6 @@ import argparse
 from guider_hist import guider
 
 
-def rand_move():
-    guider.bump()
-
-
 from cv2 import medianBlur
 
 class HighValueFinder:
@@ -200,9 +196,7 @@ class fake_cam:
 
     def get_frame(self):        
         self.frame = np.random.randint(0,512, (512,512), dtype=np.uint16)
-        
-
-        return self.frame + ndimage.shift(self.stars_frame.astype(np.uint16), (guider.cheat_move_x, guider.cheat_move_y))
+        return self.frame + self.stars_frame.astype(np.uint16)
         
     def start(self):
         self.running = 1
@@ -221,15 +215,14 @@ class fake_cam:
 
 class FrameWindow(QtWidgets.QMainWindow):
 
-    def __init__(self, parent=None):
+    def __init__(self, ui_controller, parent=None):
         QtWidgets.QMainWindow.__init__(self)
+        self.ui_controller = ui_controller
         self.quit = 0
         self._createMenuBar()
 
     def on_auto_level(self):
-        global ui
-
-        ui.auto_level = True
+        self.ui_controller.auto_level = True
         log_main.info("AUTO LEVEL")
 
     def _createMenuBar(self):
@@ -282,7 +275,7 @@ class UI:
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
 
         
-        self.win = FrameWindow()
+        self.win = FrameWindow(self)
         self.EDGE = 32
         
         self.win.resize(800,900)
@@ -394,9 +387,13 @@ class UI:
         #self.calibrate_button_ao.clicked.connect(self.Calibrate_ao_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
         self.guide_button.clicked.connect(self.Guide_buttonClick)
-        self.bump_button.clicked.connect(self.Bump_buttonClick)
+        self.bump_button.clicked.connect(self.rand_move)
   
         self.win.show()
+    
+    def rand_move(self):
+        # This is now a method of the UI class and can access the guider instance correctly.
+        self.guider.bump(0.5, 0.5) # Example bump amount
     
 
 
@@ -463,10 +460,7 @@ class UI:
     def update_status(self):
         rms_guide_x, rms_guide_y = self.guider.get_guide_rms()
         #print(rms_guide_x, rms_guide_y)
-        def update_status(self):
-        rms_guide_x, rms_guide_y = self.guider.get_guide_rms()
-        #print(rms_guide_x, rms_guide_y)
-        self.txt1.setText("FWHM= " + "min=" + "{:04f}".format(self.min) + " max=" + "{:04f}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
+        self.txt1.setText("min=" + "{:04f}".format(self.min) + " max=" + "{:04f}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
         self.updateplot(self.cx, self.cy)
 
         pico_x, pico_y = pico_device.get_ao()
@@ -585,175 +579,6 @@ class UI:
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 # sky.rate(rx * 4.0, ry * 4.0)
-                print("move at " + str(rx) + " " + str(ry))
-           
-            
-            app.processEvents()
-
-
-            result = camera.get_frame()
-            #print(result)
-
-            if (result is not None):
-                #result = self.add_star(result)
-
-                #result = result - dark
-                self.array = result
-                
-                max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
-                #print(max_y, max_x, val)
-
-                #max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
-                #log_main.info("max value = %d %d, %f", max_x, max_y, val)
-                self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
-                log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
-                #self.cx = 0
-                #self.cy = 0
-                self.ipc_check()
-
-
-                self.guider.pos_handler(self.cx, self.cy)
-                ddx = 0
-                ddy = 0
-                
-                self.ccx = ddx
-                self.ccy = ddy
-
-                self.idx = self.idx + 1
-                self.t1 = time.perf_counter()
-                #rand_move()
-                self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
-                
-                need_update = False
-                if (self.update_state == 1):
-                    need_update = True
-                if (self.update_state == 0 and self.cnt % 10 == 0):
-                    need_update = True
-
-                if (need_update):
-                    self.update()
-
-                self.cnt = self.cnt + 1
-        self.updateplot(self.cx, self.cy)
-
-        if (self.cnt % 30 == 0):
-            if not (sky is None):
-                p0 = sky.GetRaDec()
-                
-                self.txt2.setText("RA = " + p0[0][0:8] + " DEC=" + p0[1][0:8])
-
-            self.temp = 0 #camera.qc.GetTemperature()
-            self.txt3.setText("Temp = " + str(self.temp) + " fps=" + "{:.2f}".format(self.fps))
-
-
-
-
-    def update(self):
-        self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
-        
-        if (self.auto_level):
-            vmin = np.percentile(self.array, 3)
-            vmax = np.percentile(self.array,93)
-            self.imv.setLevels(vmin, vmax)
-            self.auto_level = False
-
-
-        self.txt4.setText("X="  + "{:.2f}".format(self.ccx) + " Y="  + "{:.2f}".format(self.ccy) )
-
-        
-        pos = self.clip(self.pos)
-       
-
-        sub = self.array[int(pos.y())-self.EDGE:int(pos.y())+self.EDGE, int(pos.x())-self.EDGE:int(pos.x())+self.EDGE].copy()
-
-        self.min = np.min(sub)
-        self.max = np.max(sub)
-
-
-
-        self.rms = np.std(self.array)
-
-        self.update_status()
-
-        sub = sub - self.min
-        max = self.max - self.min
-        sub =  sub * (65535.0/((max+1)))
-        sub = sub.astype(np.uint16)
-        sub = cv2.resize(sub, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
-        pixmap = self.convert_nparray_to_QPixmap(sub)
-        self.zoom_view.setPixmap(pixmap)
-
-
-
-    def add_star(self,buffer, peak_intensity=1000, fwhm=3):
-        """
-        Adds a fake star to the center of a NumPy array (image buffer).
-
-        The star is modeled as a 2D Gaussian function.
-
-        Args:
-            buffer (np.ndarray): The 2D NumPy array representing the image.
-                                 The star will be added to this buffer in-place.
-            peak_intensity (float, optional): The maximum intensity of the star's
-                                              peak. Defaults to 1000.
-            fwhm (float, optional): The Full Width at Half Maximum of the star
-                                    in pixels. This defines the star's size.
-                                    Defaults to 3.
-
-        Returns:
-            np.ndarray: The buffer with the added star.
-        """
-        # Get the dimensions of the buffer
-        height, width = buffer.shape
-
-        # Determine the center of the buffer
-        center_y, center_x = height // 2, width // 2
-        center_y = center_y + np.random.randint(-5, 6) 
-        center_x = center_x + np.random.randint(-5, 6) 
-
-        # Relate FWHM to the standard deviation (sigma) of the Gaussian
-        # FWHM = 2 * sqrt(2 * ln(2)) * sigma
-        # sigma = FWHM / (2 * np.sqrt(2 * np.log(2)))
-        sigma = fwhm / (2.35482) # Approximate value of 2*sqrt(2*ln(2))
-
-        # Create a grid of pixel coordinates
-        y, x = np.ogrid[:height, :width]
-
-        # Calculate the 2D Gaussian distribution
-        # This creates the star's profile based on the distance from the center
-        g = 1000.0*peak_intensity * np.exp(-((x - center_x)**2 + (y - center_y)**2) / (2 * sigma**2))
-
-        # Add the Gaussian star to the original buffer
-        buffer_with_star = buffer + g
-        
-        return buffer_with_star
-
-    def ipc_check(self):
-        bump = ipc.get_val("bump")
-
-        if (bump[0] == 0.0 and bump[1] == 0):
-            return
-        print("GOT BUMP")
-        #self.guider.offset(bump[0], bump[1])
-        #self.guider.reset_ao()
-        ipc.set_val("bump", [0,0])
-
-    def mainloop(self, args, camera):
-        global cheat_move_y
-        global cheat_move_x
-
-        mean_old = 0.0
-# Create an instance of HighValueFinder
-        #dark = fits.getdata("guide_dark.fits", ext=0)
-        #dark = dark - 1000.0
-        #dark = dark * 1.0
-        finder = HighValueFinder()
-        while(self.win.quit == 0):
-            time.sleep(0.01)
-           
-            if (self.mover.moving()):
-                rx, ry = self.mover.rate()
-                sky.rate(rx * 4.0, ry * 4.0)
                 print("move at " + str(rx) + " " + str(ry))
            
             
