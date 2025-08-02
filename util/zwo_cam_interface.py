@@ -64,6 +64,9 @@ class zwoasi_wrapper():
 
         self.cam.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, 70)
         
+        if self.live:
+            self.cam.start_video_capture()
+
         self.image_size_x = self.cam_info['MaxWidth']
         self.image_size_y = self.cam_info['MaxHeight']
         self.sizex = self.image_size_x
@@ -95,7 +98,9 @@ class zwoasi_wrapper():
 
     def start(self):
         if self.live:
-            self.cam.start_video_capture()
+            # In live mode, video capture is already started by __init__.
+            # This method is only for single-frame mode timing.
+            pass
         else:
             self.start_time = time.time()
         print(f"Camera started in {'live' if self.live else 'single frame'} mode")

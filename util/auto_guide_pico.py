@@ -556,6 +556,10 @@ class UI:
     def ipc_check(self):
         bump = ipc.get_val("bump")
 
+        if bump is None:
+            log_main.warning("IPC check failed. Is the state server running?")
+            return
+
         if (bump[0] == 0.0 and bump[1] == 0):
             return
         print("GOT BUMP")
