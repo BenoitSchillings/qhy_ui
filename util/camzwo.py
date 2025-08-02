@@ -51,23 +51,20 @@ from zwo_cam_interface import *
 
 class FrameWindow(QtWidgets.QMainWindow):
 
-    def __init__(self, parent=None):
+    def __init__(self, ui_controller, parent=None):
         QtWidgets.QMainWindow.__init__(self)
+        self.ui_controller = ui_controller
         self.quit = 0
         self._createMenuBar()
         self.setWindowTitle(camera.name())
 
     def on_auto_level(self):
-        global ui
-
-        ui.auto_level = True
+        self.ui_controller.auto_level = True
         log.info("AUTO LEVEL")
 
 
     def on_denoise(self):
-        global ui
-
-        ui.denoise = not ui.denoise
+        self.ui_controller.denoise = not self.ui_controller.denoise
 
 
 
@@ -75,15 +72,34 @@ class FrameWindow(QtWidgets.QMainWindow):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
         action_menu = menu_bar.addMenu('Action')
-        new_action = QAction('Auto-Level', self)
-        new_action.setShortcut('Ctrl+A')
-        new_action.triggered.connect(self.on_auto_level)
-        action_menu.addAction(new_action)
-        new_action = QAction('Noise Filter', self)
-        new_action.setShortcut('Ctrl+N')
-        new_action.triggered.connect(self.on_denoise)
-        action_menu.addAction(new_action)
+        
+        auto_level_action = QAction('Auto-Level', self)
+        auto_level_action.setShortcut('Ctrl+A')
+        auto_level_action.triggered.connect(self.on_auto_level)
+        action_menu.addAction(auto_level_action)
+        
+        denoise_action = QAction('Noise Filter', self)
+        denoise_action.setShortcut('Ctrl+N')
+        denoise_action.triggered.connect(self.on_denoise)
+        action_menu.addAction(denoise_action)
+
+        crosshair_action = QAction('Toggle Crosshair', self)
+        crosshair_action.setShortcut('Ctrl+C')
+        crosshair_action.triggered.connect(self.on_toggle_crosshair)
+        action_menu.addAction(crosshair_action)
+
+        bullseye_action = QAction('Toggle Bullseye', self)
+        bullseye_action.setShortcut('Ctrl+B')
+        bullseye_action.triggered.connect(self.on_toggle_bullseye)
+        action_menu.addAction(bullseye_action)
+
         menu_bar.addMenu(action_menu)
+
+    def on_toggle_crosshair(self):
+        self.ui_controller.toggle_crosshair()
+
+    def on_toggle_bullseye(self):
+        self.ui_controller.toggle_bullseye()
 
     def closeEvent(self, event):
         self.quit = 1
@@ -119,6 +135,15 @@ class CameraWorker(QObject):
         self.running = False
 
 
+class ExposureProgressBar(QtWidgets.QProgressBar):
+    def text(self):
+        if self.maximum() == 0:
+            return "0.0 / 0.0 sec"
+        current_sec = self.value() / 10.0
+        max_sec = self.maximum() / 10.0
+        return f"Exposure: {current_sec:.1f} / {max_sec:.1f} sec"
+
+
 class UI:
     def click(self, event):
         event.accept()      
@@ -149,11 +174,13 @@ class UI:
         self.hdf = 10.0
         self.rms = 0
         self.denoise = False
+        self.show_crosshair = False
+        self.show_bullseye = False
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
         self.frame_per_file = count
         
-        self.win = FrameWindow()
+        self.win = FrameWindow(self)
         self.EDGE = 64
         
         self.win.resize(1500,1000)
@@ -194,9 +221,8 @@ class UI:
 
         
         # --- Exposure Progress Bar ---
-        self.exposure_progress = QtWidgets.QProgressBar()
+        self.exposure_progress = ExposureProgressBar()
         self.exposure_progress.setTextVisible(True)
-        self.exposure_progress.setFormat("Exposure: %v / %m sec")
         rightlayout.layout().addWidget(self.exposure_progress)
 
 
@@ -293,6 +319,14 @@ class UI:
             self.exposure_timer.stop()
     
 
+
+    def toggle_crosshair(self):
+        self.show_crosshair = not self.show_crosshair
+        self.update()
+
+    def toggle_bullseye(self):
+        self.show_bullseye = not self.show_bullseye
+        self.update()
 
     def Update_buttonClick(self):
         #print("button")
@@ -435,6 +469,22 @@ class UI:
         if (self.array is None):
             return
 
+        display_array = self.array.copy()
+
+        if self.show_crosshair:
+            h, w = display_array.shape
+            center_x, center_y = w // 2, h // 2
+            cv2.line(display_array, (center_x, 0), (center_x, h), (65535, 65535, 65535), 1)
+            cv2.line(display_array, (0, center_y), (w, center_y), (65535, 65535, 65535), 1)
+
+        if self.show_bullseye:
+            h, w = display_array.shape
+            center_x, center_y = w // 2, h // 2
+            radii = [20, 40, 60, 80, 100]
+            for r in radii:
+                cv2.circle(display_array, (center_x, center_y), r, (65535, 65535, 65535), 1)
+
+
         def possible_star(array):
             max = np.max(array)
             min = np.min(array)
@@ -447,7 +497,7 @@ class UI:
        
         #self.array[shape[0]//2-32:shape[0]//2+32, shape[1]//2-32:shape[1]//2+32] *= 2
  
-        self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
+        self.imv.setImage(np.flip(np.rot90((display_array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
  
         if (self.auto_level):
             vmin = np.percentile(self.array, 3)
