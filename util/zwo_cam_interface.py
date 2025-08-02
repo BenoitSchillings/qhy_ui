@@ -105,8 +105,12 @@ class zwoasi_wrapper():
 
     def SetExposure(self, exposureMS):
         self.exposureMS = exposureMS
+        self.dt = exposureMS / 1000.0
         self.cam.set_control_value(asi.ASI_EXPOSURE, int(exposureMS * 1000))
         print(f"Set exposure to {self.cam.get_control_value(asi.ASI_EXPOSURE)[0] / 1000}")
+
+    def get_exposure(self):
+        return self.dt
 
     def SetGain(self, gain):
         self.gain = gain

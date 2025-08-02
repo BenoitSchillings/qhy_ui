@@ -91,6 +91,34 @@ class FrameWindow(QtWidgets.QMainWindow):
         QtWidgets.QMainWindow.closeEvent(self, event)
 
 
+class CameraWorker(QObject):
+    """
+    A worker object that handles camera operations in a separate thread.
+    """
+    new_frame_ready = pyqtSignal(object)
+    exposure_started = pyqtSignal(float)
+
+    def __init__(self, camera):
+        super().__init__()
+        self.camera = camera
+        self.running = False
+
+    def start_capture(self):
+        """Starts the continuous frame capture loop."""
+        self.running = True
+        while self.running:
+            self.exposure_started.emit(self.camera.get_exposure())
+            frame = self.camera.get_frame()
+            if frame is not None:
+                self.new_frame_ready.emit(frame)
+            # A small sleep can prevent this loop from pegging a CPU core if get_frame is fast
+            time.sleep(0.001)
+
+    def stop_capture(self):
+        """Stops the frame capture loop."""
+        self.running = False
+
+
 class UI:
     def click(self, event):
         event.accept()      
@@ -165,6 +193,12 @@ class UI:
         rightlayout.layout().addWidget(self.filename)
 
         
+        # --- Exposure Progress Bar ---
+        self.exposure_progress = QtWidgets.QProgressBar()
+        self.exposure_progress.setTextVisible(True)
+        self.exposure_progress.setFormat("Exposure: %v / %m sec")
+        rightlayout.layout().addWidget(self.exposure_progress)
+
 
         self.capture_button =  QtWidgets.QPushButton("Start Capture")
         rightlayout.layout().addWidget(self.capture_button)
@@ -197,11 +231,66 @@ class UI:
 
         self.capture_button.clicked.connect(self.Capture_buttonClick)
         self.update_button.clicked.connect(self.Update_buttonClick)
+        
+        # --- Worker Thread Setup ---
+        self.thread = QThread()
+        self.worker = CameraWorker(camera)
+        self.worker.moveToThread(self.thread)
+
+        self.worker.new_frame_ready.connect(self.handle_new_frame)
+        self.worker.exposure_started.connect(self.start_exposure_timer)
+        self.thread.started.connect(self.worker.start_capture)
+        
+        self.exposure_timer = QTimer()
+        self.exposure_timer.timeout.connect(self.update_exposure_progress)
+
+        self.thread.start()
+
+
         import sys
         if (self.auto != 0):
                 self.toggle_capture()
   
         self.win.show()
+
+    def handle_new_frame(self, frame):
+        """This slot is called when the worker thread has a new frame."""
+        if frame is None:
+            return
+
+        self.array = frame
+        self.cnt += 1
+
+        if self.capture_state == 1:
+            self.add_to_save(self.array)
+            if self.cnt >= self.frame_per_file:
+                self.toggle_capture()
+                if self.auto != 0:
+                    self.win.quit = 1 # Exit if in auto mode
+                else:
+                    self.toggle_capture()
+
+        self.idx += 1
+        self.t1 = time.perf_counter()
+        self.fps = 1.0 / ((self.t1 - self.t0) / self.idx) if self.idx > 0 else 0
+
+        need_update = (self.update_state == 1) or (self.update_state == 0 and self.cnt % 10 == 0)
+        if need_update:
+            self.update()
+
+    def start_exposure_timer(self, duration):
+        """This slot is called when the worker starts a new exposure."""
+        self.exposure_progress.setMaximum(int(duration * 10))
+        self.exposure_progress.setValue(0)
+        self.exposure_timer.start(100) # Update every 100ms
+
+    def update_exposure_progress(self):
+        """This slot updates the exposure progress bar."""
+        current_value = self.exposure_progress.value()
+        if current_value < self.exposure_progress.maximum():
+            self.exposure_progress.setValue(current_value + 1)
+        else:
+            self.exposure_timer.stop()
     
 
 
@@ -417,49 +506,18 @@ class UI:
     def mainloop(self, args, camera):
         self.t0 = time.perf_counter()
         while(self.win.quit == 0):
-            time.sleep(0.002)
+            time.sleep(0.01) # Keep the loop from running too fast
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 sky.rate(rx * 4.0, ry * 4.0)
-                print("move at " + str(rx) + " " + str(ry))
-            
+                #print("move at " + str(rx) + " " + str(ry))
             
             app.processEvents()
-            result = camera.get_frame()
-            
-            if (result is None):
-                self.update()
 
-            if (result is not None):
-                self.array = (result)
-
-                self.cnt = self.cnt + 1
-                if (self.capture_state == 1):
-                    self.add_to_save(self.array)
-                    
-                    if (self.cnt >= self.frame_per_file):
-                        self.toggle_capture()
-                        if (self.auto != 0):
-                        	return
-                        	
-                        self.toggle_capture()
-                
-                self.idx = self.idx + 1
-                self.t1 = time.perf_counter()
-
-                self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
-                #print(self.fps)
-                need_update = False
-                if (self.update_state == 1):
-                    need_update = True
-                if (self.update_state == 0 and self.cnt % 10 == 0):
-                    need_update = True
-
-                if (need_update):
-                    self.update()
-
-                
-
+        # --- Cleanup ---
+        self.worker.stop_capture()
+        self.thread.quit()
+        self.thread.wait()
         if (self.capture_state == 1 and self.fits == 0):
             self.capture_file.close()
 
