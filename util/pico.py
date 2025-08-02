@@ -2,6 +2,10 @@ import time
 import math
 import controller as xp
 import sys
+import logging
+
+# It's good practice to have a logger in each module.
+log = logging.getLogger(__name__)
 
 m1_fwd, m1_back = 11690, -16450
 m2_fwd, m2_back = 13080, -13800
@@ -17,7 +21,7 @@ def move_low_level(v1, v2, v3):
     scaled_v1 = scale_motor_value(v1, m1_fwd, m1_back)
     scaled_v2 = scale_motor_value(v2, m2_fwd, m2_back)
     scaled_v3 = scale_motor_value(v3, m3_fwd, m3_back)
-    print(scaled_v1, scaled_v2, scaled_v3)
+    log.debug(f"Pico Low-Level Move: v1={scaled_v1}, v2={scaled_v2}, v3={scaled_v3}")
     xp.move3(1100, scaled_v1, scaled_v2, scaled_v3)
 
 

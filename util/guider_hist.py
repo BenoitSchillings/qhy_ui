@@ -329,14 +329,14 @@ class guider:
                             (dy * self.pending_correction_y) >= 0)
 
             if not is_confirmed:
-                log.info(f"Deviation was transient. Previous error ({self.pending_correction_x:.2f}, {self.pending_correction_y:.2f}) is now ({dx:.2f}, {dy:.2f}). Aborting correction.")
+                log.debug(f"Deviation was transient. Previous error ({self.pending_correction_x:.2f}, {self.pending_correction_y:.2f}) is now ({dx:.2f}, {dy:.2f}). Aborting correction.")
                 self.is_correction_pending = False
                 return dx, dy
             
-            log.info(f"Deviation CONFIRMED. Error ({dx:.2f}, {dy:.2f}). Proceeding with correction.")
+            log.debug(f"Deviation CONFIRMED. Error ({dx:.2f}, {dy:.2f}). Proceeding with correction.")
         
         elif error_magnitude > self.seeing_threshold_pix:
-            log.info(f"Potential deviation detected. Error ({dx:.2f}, {dy:.2f}) > threshold ({self.seeing_threshold_pix:.2f}). Waiting for next frame.")
+            log.debug(f"Potential deviation detected. Error ({dx:.2f}, {dy:.2f}) > threshold ({self.seeing_threshold_pix:.2f}). Waiting for next frame.")
             self.is_correction_pending = True
             self.pending_correction_x = dx
             self.pending_correction_y = dy
@@ -363,7 +363,7 @@ class guider:
         corrected_mount_y = mount_y * self.mount_gain_y
 
         if abs(corrected_mount_x) > 1e-4 or abs(corrected_mount_y) > 1e-4:
-            log.info(f"Applying mount correction: JogX={corrected_mount_x:.4f}, JogY={corrected_mount_y:.4f}")
+            log.debug(f"Applying mount correction: JogX={corrected_mount_x:.4f}, JogY={corrected_mount_y:.4f}")
             self.fbump_mount(corrected_mount_x, corrected_mount_y)
             self.last_mount_bump_time = self.current_milli_time()
         
