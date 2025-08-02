@@ -326,8 +326,20 @@ class zwoasi_wrapper():
         return self.cam_info['Name']
 
     def get_frame(self):
-        self.frame = self.GetSingleFrame()
-        return self.frame
+        if self.live:
+            return self.GetLiveFrame()
+        else:
+            return self.GetSingleFrame()
+
+    def start_exposure(self, is_live):
+        if not is_live:
+            self.cam.start_exposure()
+
+    def get_exposure_status(self):
+        return self.cam.get_exposure_status()
+
+    def get_data_after_exposure(self):
+        return self.cam.get_data_after_exposure()
 
     def Begin(self):
         if self.live:

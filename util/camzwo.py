@@ -122,13 +122,38 @@ class CameraWorker(QObject):
     def start_capture(self):
         """Starts the continuous frame capture loop."""
         self.running = True
+        is_live = self.camera.live
+
         while self.running:
-            self.exposure_started.emit(self.camera.get_exposure())
-            frame = self.camera.get_frame()
-            if frame is not None:
-                self.new_frame_ready.emit(frame)
-            # A small sleep can prevent this loop from pegging a CPU core if get_frame is fast
-            time.sleep(0.001)
+            if is_live:
+                # Live mode: simple blocking call
+                frame = self.camera.GetLiveFrame()
+                if frame is not None:
+                    self.new_frame_ready.emit(frame)
+                time.sleep(0.01) # Small delay for responsiveness
+            else:
+                # Single-frame mode: non-blocking polling loop
+                self.exposure_started.emit(self.camera.get_exposure())
+                self.camera.start_exposure(is_live=False)
+                
+                # Poll for completion
+                while self.running:
+                    status = self.camera.get_exposure_status()
+                    if status == asi.ASI_EXP_SUCCESS:
+                        buffer = self.camera.get_data_after_exposure()
+                        if self.camera.bpp == 8:
+                            img = np.frombuffer(buffer, dtype=np.uint8)
+                        else:
+                            img = np.frombuffer(buffer, dtype=np.uint16)
+                        
+                        img = img.reshape((self.camera.roi_h, self.camera.roi_w))
+                        self.new_frame_ready.emit(img)
+                        break # Exit polling loop to start next exposure
+                    elif status == asi.ASI_EXP_FAILED:
+                        log.error("Exposure failed in worker thread.")
+                        break # Exit polling loop
+                    
+                    time.sleep(0.1) # Poll every 100ms
 
     def stop_capture(self):
         """Stops the frame capture loop."""
@@ -305,6 +330,7 @@ class UI:
 
     def handle_new_frame(self, frame):
         """This slot is called when the worker thread has a new frame."""
+        self.exposure_timer.stop()
         if frame is None:
             return
 
