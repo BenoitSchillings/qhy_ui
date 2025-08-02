@@ -189,6 +189,30 @@ class UI:
         self.imv.setImage(self.array)
         self.imv.getImageItem().setAutoDownsample(active=True)
         
+        # --- Setup Overlays ---
+        vb = self.imv.getView()
+        
+        # Crosshair
+        self.crosshair_v = pg.InfiniteLine(angle=90, movable=False, pen='g')
+        self.crosshair_h = pg.InfiniteLine(angle=0, movable=False, pen='g')
+        self.crosshair_v.setPos(self.sx / 2)
+        self.crosshair_h.setPos(self.sy / 2)
+        self.crosshair_v.setVisible(False)
+        self.crosshair_h.setVisible(False)
+        vb.addItem(self.crosshair_v)
+        vb.addItem(self.crosshair_h)
+
+        # Bullseye
+        self.bullseye_items = []
+        radii = [20, 40, 60, 80, 100]
+        for r in radii:
+            circle = QtWidgets.QGraphicsEllipseItem(-r, -r, r * 2, r * 2)
+            circle.setPen(pg.mkPen('g'))
+            circle.setPos(self.sx / 2, self.sy / 2)
+            circle.setVisible(False)
+            self.bullseye_items.append(circle)
+            vb.addItem(circle)
+
         self.win.setCentralWidget(self.imv)
 
         self.statusBar = QtWidgets.QStatusBar()
@@ -322,11 +346,13 @@ class UI:
 
     def toggle_crosshair(self):
         self.show_crosshair = not self.show_crosshair
-        self.update()
+        self.crosshair_v.setVisible(self.show_crosshair)
+        self.crosshair_h.setVisible(self.show_crosshair)
 
     def toggle_bullseye(self):
         self.show_bullseye = not self.show_bullseye
-        self.update()
+        for item in self.bullseye_items:
+            item.setVisible(self.show_bullseye)
 
     def Update_buttonClick(self):
         #print("button")
@@ -469,22 +495,6 @@ class UI:
         if (self.array is None):
             return
 
-        display_array = self.array.copy()
-
-        if self.show_crosshair:
-            h, w = display_array.shape
-            center_x, center_y = w // 2, h // 2
-            cv2.line(display_array, (center_x, 0), (center_x, h), (65535, 65535, 65535), 1)
-            cv2.line(display_array, (0, center_y), (w, center_y), (65535, 65535, 65535), 1)
-
-        if self.show_bullseye:
-            h, w = display_array.shape
-            center_x, center_y = w // 2, h // 2
-            radii = [20, 40, 60, 80, 100]
-            for r in radii:
-                cv2.circle(display_array, (center_x, center_y), r, (65535, 65535, 65535), 1)
-
-
         def possible_star(array):
             max = np.max(array)
             min = np.min(array)
@@ -497,7 +507,7 @@ class UI:
        
         #self.array[shape[0]//2-32:shape[0]//2+32, shape[1]//2-32:shape[1]//2+32] *= 2
  
-        self.imv.setImage(np.flip(np.rot90((display_array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
+        self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
  
         if (self.auto_level):
             vmin = np.percentile(self.array, 3)
