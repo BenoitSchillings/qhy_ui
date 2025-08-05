@@ -28,6 +28,8 @@ import math
 from scipy import ndimage
 import mover
 import pico
+import skyx
+from mount_corrector import MountCorrector
 
 import logging
 
@@ -57,28 +59,16 @@ ipc.set_val("bump", [0,0])
 
 pico_device = pico.ao()
 
-class pico_mount:
+class pico_AO:
     def __init__(self):
         # I might need to initialize the pico connection here
         pass
 
     def bump(self, dx, dy):
-        # This is where I need to map dx, dy to pico movements.
-        # From guider.py, dx and dy are values like 0.4.
-        # From pico.py, the functions take an integer.
-        # I'll need to figure out a scaling factor.
-        # Let's assume a simple mapping for now.
-        # The guider code has `fbump_mount(tx / 200.0, ty / 200.0)`
-        # and `handle_calibrate_mount` uses `N = 0.4`.
-        # So the values to jog are small.
-        # Let's try to map these to integer values for pico.
-        # Let's say a jog of 0.4 corresponds to a pico move of 40.
-        # So I'll multiply by 100.
-
         pico_dx = int(dx * 100)
         pico_dy = int(dy * 100)
         
-        log_main.debug(f"Bumping pico mount: dx={pico_dx}, dy={pico_dy}")
+        log_main.debug(f"Bumping pico AO: dx={pico_dx}, dy={pico_dy}")
         pico_device.move_relative(pico_dx, pico_dy)
 
 #--------------------------------------------------------
@@ -105,41 +95,30 @@ class HighValueFinder:
         filtered_array = medianBlur(array, self.blur_size)
 
         if self.hint_x is not None and self.hint_y is not None and self.reference_value is not None:
-            # Define the search box boundaries
             x_start = max(0, self.hint_x - self.search_box_size // 2)
             x_end = min(array.shape[1], self.hint_x + self.search_box_size // 2)
             y_start = max(0, self.hint_y - self.search_box_size // 2)
             y_end = min(array.shape[0], self.hint_y + self.search_box_size // 2)
             
-            # Extract the search box
             search_area = filtered_array[y_start:y_end, x_start:x_end]
             
-            # Find the maximum value within the search box
             local_max = np.max(search_area)
-            #log_main.info("maxv %f %f", local_max, self.reference_value)
-            # If the local max is less than half the reference value, do a full scan
             if local_max < 0.4 * self.reference_value:
-                #log_main.info("max too low. rescan full %f %f", local_max, self.reference_value)
                 return self._full_array_scan(filtered_array)
             
             local_rows, local_cols = np.where(search_area == local_max)
             
-            # Translate local coordinates back to global coordinates
             col = local_cols[0] + x_start
             row = local_rows[0] + y_start
         else:
-            # If no hint is available, do a full array scan
             col, row, val = self._full_array_scan(filtered_array)
         
-        # Update hint and reference value for next call
         self.hint_x, self.hint_y = col, row
         self.reference_value = filtered_array[row, col]
-        #log_main.info("curpos %d %d", col, row)
         return col, row, filtered_array[row, col]
 
     def _full_array_scan(self, array):
         rows, cols = np.where(array == np.max(array))
-        #log_main.info("full scan %d %d", cols[0], rows[0])
         self.reference_value = array[rows[0], cols[0]]
         return cols[0], rows[0], array[rows[0], cols[0]]
 
@@ -164,15 +143,8 @@ class fake_cam:
         self.stars_frame = self.stars(self.frame, 4, gain=2)
 
     def stars(self, image, number, max_counts=3000, gain=1):
-        """
-        Add some stars to the image.
-        """
         from photutils.datasets import make_random_gaussians_table, make_gaussian_sources_image
-        # Most of the code below is a direct copy/paste from
-        # https://photutils.readthedocs.io/en/stable/_modules/photutils/datasets/make.html#make_100gaussians_image
-        
         flux_range = [max_counts/5, max_counts]
-        
         y_max, x_max = image.shape
         xmean_range = [0.1 * x_max, 0.9 * x_max]
         ymean_range = [0.1 * y_max, 0.9 * y_max]
@@ -184,15 +156,9 @@ class fake_cam:
                       ('x_stddev', xstddev_range),
                       ('y_stddev', ystddev_range),
                       ('theta', [0, 2*np.pi])])
-
-        sources = make_random_gaussians_table(number, params,
-                                              seed=12345)
-        
+        sources = make_random_gaussians_table(number, params, seed=12345)
         star_im = make_gaussian_sources_image(image.shape, sources)
-        
         return star_im         
-
-    
 
     def get_frame(self):        
         self.frame = np.random.randint(0,512, (512,512), dtype=np.uint16)
@@ -200,21 +166,14 @@ class fake_cam:
         
     def start(self):
         self.running = 1
-        
     def close(self):
         self.running = 0
-
     def size_x(self):
         return 512
-    
     def size_y(self):
         return 512
 
-
-
-
 class FrameWindow(QtWidgets.QMainWindow):
-
     def __init__(self, ui_controller, parent=None):
         QtWidgets.QMainWindow.__init__(self)
         self.ui_controller = ui_controller
@@ -249,16 +208,11 @@ class UI:
 
     def convert_nparray_to_QPixmap(self,img):
         w,h = img.shape
-
         qimg = QImage(img.data, h, w, QImage.Format_Grayscale16) 
         qpixmap = QPixmap(qimg)
-
         return qpixmap
 
-        
-
-
-    def __init__(self,  args, sx, sy, guider):
+    def __init__(self,  args, sx, sy, guider, mount_corrector):
         self.sx = sx
         self.sy = sy
         self.t0 = time.perf_counter()
@@ -267,99 +221,96 @@ class UI:
         self.capture_state = 0
         self.update_state = 1
         self.guider = guider
+        self.mount_corrector = mount_corrector
         self.auto_level = False
         
-      	
         self.rms = 0
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
 
-        
         self.win = FrameWindow(self)
         self.EDGE = 32
-        
         self.win.resize(800,900)
         
         self.imv = pg.ImageView()
         self.imv.setImage(self.array)
         self.imv.getImageItem().setAutoDownsample(active=True)
-      
         self.win.setCentralWidget(self.imv)
 
         self.statusBar = QtWidgets.QStatusBar()
-
 
         temp_widget = QtWidgets.QWidget(self.win)
         temp_widget.setLayout(QtWidgets.QHBoxLayout())
         temp_widget.setFixedSize(1024, 256)
         self.zoom_view = QtWidgets.QLabel(self.win)
-        
         temp_widget.layout().addWidget(self.zoom_view)
 
-
-
-        # Create combined widget (mover + rotation controls)
         self.combined_mover = mover.CombinedWidget()
-        self.combined_mover.setFixedSize(290, 230)  # Adjust size to accommodate rotation controls
-        self.mover = self.combined_mover.mover  # Keep reference to mover for existing code
+        self.combined_mover.setFixedSize(290, 230)
+        self.mover = self.combined_mover.mover
         temp_widget.layout().addWidget(self.combined_mover)
-        
         self.statusBar.addPermanentWidget(temp_widget, 1)
- 
 
-
-
-        self.plt = pg.plot(title='dx')
+        # --- Plots ---
+        plot_layout = QtWidgets.QWidget()
+        plot_layout.setLayout(QtWidgets.QVBoxLayout())
+        
+        self.plt_dx = pg.plot(title='dx')
         self.plt_bufsize = 100
         self.ccx = 0
         self.ccy = 0
         self.x1 = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
         self.y1 = np.zeros(self.plt_bufsize, dtype=np.float64)
         self.databufferx = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
-        temp_widget.layout().addWidget(self.plt)
-        self.plt.showGrid(x=True, y=True)
-        self.plt.setLabel('left', 'pos_x', 'pixels')
-        self.plt.setLabel('bottom', 'frame', 'f')
-        self.curvex = self.plt.plot(self.x1, self.y1, pen=(255,0,0))
-        self.statusBar.addPermanentWidget(temp_widget, 1)
+        self.plt_dx.showGrid(x=True, y=True)
+        self.plt_dx.setLabel('left', 'pos_x', 'pixels')
+        self.plt_dx.setLabel('bottom', 'frame', 'f')
+        self.curvex = self.plt_dx.plot(self.x1, self.y1, pen=(255,0,0))
+        plot_layout.layout().addWidget(self.plt_dx)
 
-
-        self.plt = pg.plot(title='dy')
-        self.plt_bufsize = 100
+        self.plt_dy = pg.plot(title='dy')
         self.x2 = np.linspace(-self.plt_bufsize, 0.0, self.plt_bufsize)
         self.y2 = np.zeros(self.plt_bufsize, dtype=np.float64)
         self.databuffery = collections.deque([0.0]*self.plt_bufsize, self.plt_bufsize)
-        temp_widget.layout().addWidget(self.plt)
-        self.plt.showGrid(x=True, y=True)
-        self.plt.setLabel('left', 'pos_y', 'pixels')
-        self.plt.setLabel('bottom', 'frame', 'f')
-        self.curvey = self.plt.plot(self.x2, self.y2, pen=(255,0,0))
-        self.statusBar.addPermanentWidget(temp_widget, 1)
+        self.plt_dy.showGrid(x=True, y=True)
+        self.plt_dy.setLabel('left', 'pos_y', 'pixels')
+        self.plt_dy.setLabel('bottom', 'frame', 'f')
+        self.curvey = self.plt_dy.plot(self.x2, self.y2, pen=(255,0,0))
+        plot_layout.layout().addWidget(self.plt_dy)
 
+        self.pico_plot = pg.plot(title='Pico Offsets')
+        self.pico_plot.setAspectLocked(True)
+        self.pico_plot.showGrid(x=True, y=True)
+        self.pico_plot.setLabel('left', 'Pico Y')
+        self.pico_plot.setLabel('bottom', 'Pico X')
+        self.pico_plot_data = self.pico_plot.plot(pen=None, symbol='o', symbolSize=5)
+        self.pico_offset_buffer = collections.deque(maxlen=200)
+        plot_layout.layout().addWidget(self.pico_plot)
+
+        temp_widget.layout().addWidget(plot_layout)
+        # --- End Plots ---
 
         rightlayout = QtWidgets.QWidget(self.win)
         rightlayout.setLayout(QtWidgets.QVBoxLayout())
         rightlayout.setFixedSize(564, 228)
         
-        
-
-        self.calibrate_button_pico =  QtWidgets.QPushButton("Calibrate_pico")
-        rightlayout.layout().addWidget(self.calibrate_button_pico)
-        #self.calibrate_button_ao =  QtWidgets.QPushButton("Calibrate_ao")
-        #rightlayout.layout().addWidget(self.calibrate_button_ao)
+        self.calibrate_ao_button =  QtWidgets.QPushButton("Calibrate AO")
+        rightlayout.layout().addWidget(self.calibrate_ao_button)
+        self.calibrate_mount_button = QtWidgets.QPushButton("Calibrate Mount")
+        rightlayout.layout().addWidget(self.calibrate_mount_button)
+        self.recenter_button = QtWidgets.QPushButton("Recenter Mount")
+        rightlayout.layout().addWidget(self.recenter_button)
 
         self.guide_button =  QtWidgets.QPushButton("Guide")
         rightlayout.layout().addWidget(self.guide_button)
         self.bump_button =  QtWidgets.QPushButton("bump")
         rightlayout.layout().addWidget(self.bump_button)
 
-
         self.update_button =  QtWidgets.QPushButton("slow_update")
         rightlayout.layout().addWidget(self.update_button)
         self.txt1 = QtWidgets.QLabel(self.win)
         rightlayout.layout().addWidget(self.txt1)
         self.txt1.setText("status_text 1")
-
 
         self.txt2 = QtWidgets.QLabel(self.win)
         rightlayout.layout().addWidget(self.txt2)
@@ -373,33 +324,27 @@ class UI:
         rightlayout.layout().addWidget(self.txt4)
         self.txt4.setText("status_text 4")
 
-
         self.statusBar.addPermanentWidget(rightlayout)
-
         self.win.setStatusBar(self.statusBar)
         
-      
-        self. win.setWindowTitle('qhycam guide')
+        self.win.setWindowTitle('qhycam guide')
         self.imv.getImageItem().mouseClickEvent = self.click
         self.cnt = 0
 
-        self.calibrate_button_pico.clicked.connect(self.Calibrate_pico_buttonClick)
-        #self.calibrate_button_ao.clicked.connect(self.Calibrate_ao_buttonClick)
+        self.calibrate_ao_button.clicked.connect(self.calibrate_ao_button_click)
+        self.calibrate_mount_button.clicked.connect(self.calibrate_mount_button_click)
+        self.recenter_button.clicked.connect(self.recenter_mount_button_click)
         self.update_button.clicked.connect(self.Update_buttonClick)
         self.guide_button.clicked.connect(self.Guide_buttonClick)
         self.bump_button.clicked.connect(self.rand_move)
   
         self.win.show()
+        self.last_mount_correction_time = time.time()
     
     def rand_move(self):
-        # This is now a method of the UI class and can access the guider instance correctly.
-        self.guider.bump(0.5, 0.5) # Example bump amount
-    
-
+        self.guider.bump(0.5, 0.5)
 
     def Update_buttonClick(self):
-        #print("button")
-
         if (self.update_state == 1):
             self.update_button.setText("fast_update")
             self.update_state = 0
@@ -407,19 +352,17 @@ class UI:
             self.update_button.setText("slow_update")
             self.update_state = 1
 
-    def Bump_buttonClick(self):
-        rand_move()
+    def calibrate_ao_button_click(self):
+        self.guider.calibrate_ao()
+        log_main.info("Calibrate AO")
 
+    def calibrate_mount_button_click(self):
+        self.mount_corrector.calibrate_mount()
+        log_main.info("Calibrate Mount")
 
-
-    #def Calibrate_ao_buttonClick(self):
-    #    self.guider.calibrate_ao()
-    #    log_main.info("Calibrate_ao")
-
-
-    def Calibrate_pico_buttonClick(self):
-        self.guider.calibrate_mount()
-        log_main.info("Calibrate_pico")
+    def recenter_mount_button_click(self):
+        log_main.info("Manual mount recenter triggered.")
+        self.recenter_mount()
 
     def Guide_buttonClick(self):
         if self.guider.is_guiding:
@@ -441,40 +384,34 @@ class UI:
         self.y2[:] = self.databuffery
         self.curvey.setData(self.x2, self.y2)
         
-       
-
+    def update_pico_plot(self, pico_x, pico_y):
+        self.pico_offset_buffer.append({'x': pico_x, 'y': pico_y})
+        x_vals = [item['x'] for item in self.pico_offset_buffer]
+        y_vals = [item['y'] for item in self.pico_offset_buffer]
+        self.pico_plot_data.setData(x_vals, y_vals)
 
     def clip(self, pos):
-        if (pos.x() < self.EDGE):
-            pos.setX(self.EDGE)
-        if (pos.y() < self.EDGE):
-            pos.setY(self.EDGE)
-
-        if (pos.x() > (self.sx-self.EDGE)):
-            pos.setX(self.sx-self.EDGE)
-        if (pos.y() > (self.sy-self.EDGE)):
-            pos.setY(self.sy-self.EDGE)
-
+        if (pos.x() < self.EDGE): pos.setX(self.EDGE)
+        if (pos.y() < self.EDGE): pos.setY(self.EDGE)
+        if (pos.x() > (self.sx-self.EDGE)): pos.setX(self.sx-self.EDGE)
+        if (pos.y() > (self.sy-self.EDGE)): pos.setY(self.sy-self.EDGE)
         return pos
 
     def update_status(self):
         rms_guide_x, rms_guide_y = self.guider.get_guide_rms()
-        #print(rms_guide_x, rms_guide_y)
         self.txt1.setText("min=" + "{:04f}".format(self.min) + " max=" + "{:04f}".format(self.max) + " frame=" + str(self.cnt) + " RMS=" + "{:.1f} ".format(self.rms))
         self.updateplot(self.cx, self.cy)
 
         pico_x, pico_y = pico_device.get_ao()
         self.txt2.setText(f"Pico Pos: X={pico_x}, Y={pico_y}")
+        self.update_pico_plot(pico_x, pico_y)
 
         if (self.cnt % 30 == 0):
-            self.temp = 0 #camera.qc.GetTemperature()
+            self.temp = 0
             self.txt3.setText("Temp = " + str(self.temp) + " fps=" + "{:.2f}".format(self.fps))
 
-
-
-
     def update(self):
-        self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False) #, pos=[-1300,0],scale=[2,2])
+        self.imv.setImage(np.flip(np.rot90((self.array)), axis=0), autoRange=False, autoLevels=False, autoHistogramRange=False)
         
         if (self.auto_level):
             vmin = np.percentile(self.array, 3)
@@ -482,185 +419,118 @@ class UI:
             self.imv.setLevels(vmin, vmax)
             self.auto_level = False
 
-
         self.txt4.setText("X="  + "{:.2f}".format(self.ccx) + " Y="  + "{:.2f}".format(self.ccy) )
-
         
         pos = self.clip(self.pos)
-       
-
         sub = self.array[int(pos.y())-self.EDGE:int(pos.y())+self.EDGE, int(pos.x())-self.EDGE:int(pos.x())+self.EDGE].copy()
 
         self.min = np.min(sub)
         self.max = np.max(sub)
-
-
-
         self.rms = np.std(self.array)
-
         self.update_status()
 
         sub = sub - self.min
-        max = self.max - self.min
-        sub =  sub * (65535.0/((max+1)))
+        max_val = self.max - self.min
+        sub =  sub * (65535.0/((max_val+1)))
         sub = sub.astype(np.uint16)
         sub = cv2.resize(sub, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
         pixmap = self.convert_nparray_to_QPixmap(sub)
         self.zoom_view.setPixmap(pixmap)
 
-
-
-    def add_star(self,buffer, peak_intensity=1000, fwhm=3):
-        """
-        Adds a fake star to the center of a NumPy array (image buffer).
-
-        The star is modeled as a 2D Gaussian function.
-
-        Args:
-            buffer (np.ndarray): The 2D NumPy array representing the image.
-                                 The star will be added to this buffer in-place.
-            peak_intensity (float, optional): The maximum intensity of the star's
-                                              peak. Defaults to 1000.
-            fwhm (float, optional): The Full Width at Half Maximum of the star
-                                    in pixels. This defines the star's size.
-                                    Defaults to 3.
-
-        Returns:
-            np.ndarray: The buffer with the added star.
-        """
-        # Get the dimensions of the buffer
-        height, width = buffer.shape
-
-        # Determine the center of the buffer
-        center_y, center_x = height // 2, width // 2
-        center_y = center_y + np.random.randint(-5, 6) 
-        center_x = center_x + np.random.randint(-5, 6) 
-
-        # Relate FWHM to the standard deviation (sigma) of the Gaussian
-        # FWHM = 2 * sqrt(2 * ln(2)) * sigma
-        # sigma = FWHM / (2 * np.sqrt(2 * np.log(2)))
-        sigma = fwhm / (2.35482) # Approximate value of 2*sqrt(2*ln(2))
-
-        # Create a grid of pixel coordinates
-        y, x = np.ogrid[:height, :width]
-
-        # Calculate the 2D Gaussian distribution
-        # This creates the star's profile based on the distance from the center
-        g = 1000.0*peak_intensity * np.exp(-((x - center_x)**2 + (y - center_y)**2) / (2 * sigma**2))
-
-        # Add the Gaussian star to the original buffer
-        buffer_with_star = buffer + g
-        
-        return buffer_with_star
-
     def ipc_check(self):
         bump = ipc.get_val("bump")
-
         if bump is None:
             log_main.warning("IPC check failed. Is the state server running?")
             return
-
         if (bump[0] == 0.0 and bump[1] == 0):
             return
-        print("GOT BUMP")
-        #self.guider.offset(bump[0], bump[1])
-        #self.guider.reset_ao()
+        
+        log_main.info("IPC bump received. Triggering mount recenter.")
+        self.recenter_mount()
+        
+        # Reset the IPC trigger
         ipc.set_val("bump", [0,0])
 
-    def mainloop(self, args, camera):
-        global cheat_move_y
-        global cheat_move_x
+    def recenter_mount(self):
+        if not self.guider.is_guiding:
+            log_main.warning("Cannot recenter mount when not guiding.")
+            return
+        
+        pico_x, pico_y = pico_device.get_ao()
+        if self.mount_corrector.correct_mount_drift(pico_x, pico_y, self.guider):
+            pico_device.zero()
+            self.pico_offset_buffer.clear()
+            log_main.info("Pico centered after mount correction.")
+        self.last_mount_correction_time = time.time()
 
-        mean_old = 0.0
-# Create an instance of HighValueFinder
-        #dark = fits.getdata("guide_dark.fits", ext=0)
-        #dark = dark - 1000.0
-        #dark = dark * 1.0
+    def process_image_frame(self, camera, finder):
+        """Gets a frame and finds the star centroid."""
+        result = camera.get_frame()
+        if result is None:
+            return False
+
+        self.array = result
+        max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
+        self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
+        log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
+        return True
+
+    def handle_guiding_and_calibration(self):
+        """Routes the star position to the correct handler based on state."""
+        if self.guider.ao_cal_state_count > 0:
+            self.guider.pos_handler(self.cx, self.cy)
+        elif self.mount_corrector.mount_cal_state_count > 0:
+            self.mount_corrector.handle_calibrate_mount(self.cx, self.cy)
+        elif self.guider.is_guiding:
+            self.guider.pos_handler(self.cx, self.cy)
+
+    def handle_periodic_mount_correction(self):
+        """Checks if it's time to correct for mount drift and does so."""
+        if self.guider.is_guiding and (time.time() - self.last_mount_correction_time > 600):
+            self.recenter_mount()
+
+    def mainloop(self, args, camera):
         finder = HighValueFinder()
         while(self.win.quit == 0):
             time.sleep(0.01)
-           
-            if (self.mover.moving()):
-                rx, ry = self.mover.rate()
-                # sky.rate(rx * 4.0, ry * 4.0)
-                print("move at " + str(rx) + " " + str(ry))
-           
-            
             app.processEvents()
 
+            if not self.process_image_frame(camera, finder):
+                continue
+            
+            self.ipc_check()
+            self.handle_guiding_and_calibration()
+            self.handle_periodic_mount_correction()
 
-            result = camera.get_frame()
-            #print(result)
+            self.idx += 1
+            self.t1 = time.perf_counter()
+            self.fps = 1.0 / ((self.t1 - self.t0) / self.idx) if self.idx > 0 else 0
+            
+            need_update = (self.update_state == 1) or (self.update_state == 0 and self.cnt % 10 == 0)
+            if (need_update):
+                self.update()
 
-            if (result is not None):
-                #result = self.add_star(result)
-
-                #result = result - dark
-                self.array = result
-                
-                max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
-                #print(max_y, max_x, val)
-
-                #max_y, max_x = find_high_value_element(self.array[32:-32, 32:-32])
-                #log_main.info("max value = %d %d, %f", max_x, max_y, val)
-                self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
-                log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
-                #self.cx = 0
-                #self.cy = 0
-                self.ipc_check()
-
-
-                self.guider.pos_handler(self.cx, self.cy)
-                ddx = 0
-                ddy = 0
-                
-                self.ccx = ddx
-                self.ccy = ddy
-
-                self.idx = self.idx + 1
-                self.t1 = time.perf_counter()
-                #rand_move()
-                self.fps = 1.0 / ((self.t1-self.t0)/self.idx)
-                
-                need_update = False
-                if (self.update_state == 1):
-                    need_update = True
-                if (self.update_state == 0 and self.cnt % 10 == 0):
-                    need_update = True
-
-                if (need_update):
-                    self.update()
-
-                self.cnt = self.cnt + 1
-
-
+            self.cnt += 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-exp", type=float, default = 0.1, help="exposure in seconds (default 0.1)")
     parser.add_argument("-gain", "--gain", type=int, default = 300, help="camera gain (default 100)")
-    parser.add_argument("-guide", "--guide", type=int, default = 0, help="frame per guide cycle (0 to disable)")
-    
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
-    parser.add_argument("-auto", "--auto", type=int, default = 0, help="start guiding automatically")
     parser.add_argument("-cam", "--cam", type=str, default = "220", help="cam name")
     args = parser.parse_args()
 
-    pico_dev = pico_mount()
-
+    skyx_controller = skyx.skyx()
+    mount_corrector = MountCorrector(skyx_controller)
+    pico_dev = pico_AO()
 
     if (args.cam == -1):
         camera = fake_cam(100, args.exp, args.gain, args.crop)
     else:
         camera = zwoasi_wrapper(100, args.exp, args.gain, args.crop, args.cam, False)
 
-
-    guider = guider(pico_dev, camera)
-
-    # Set up the signal handler
-    #signal.signal(signal.SIGINT, signal_handler)
-
-    ui = UI(args, camera.size_x(), camera.size_y(), guider)
+    ao_guider = guider(pico_dev, camera)
+    ui = UI(args, camera.size_x(), camera.size_y(), ao_guider, mount_corrector)
 
     camera.start()
 
@@ -669,7 +539,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
-        guider.close()
+        ao_guider.close()
         camera.close()
         pico_device.zero()
         log_main.info("Pico centered.")

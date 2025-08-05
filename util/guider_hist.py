@@ -13,7 +13,7 @@ log.setLevel(logging.INFO)
 # Prevent adding handlers multiple times if the module is reloaded
 if not log.handlers:
     try:
-        file_handler = logging.FileHandler('mount_guide.log') # Log to a file
+        file_handler = logging.FileHandler('ao_guide.log') # Log to a file
         stream_handler = logging.StreamHandler() # Log to the console
         
         # A detailed formatter helps trace execution flow
@@ -32,21 +32,20 @@ if not log.handlers:
 
 class guider:
     """
-    A class to handle telescope mount guiding, including calibration,
+    A class to handle AO guiding, including calibration,
     state persistence, and logic to avoid chasing atmospheric seeing.
     """
-    def __init__(self, mount, camera):
-        log.info("Initializing Mount Guider")
-        self.mount = mount
+    def __init__(self, ao, camera):
+        log.info("Initializing AO Guider")
+        self.ao = ao
         self.camera = camera
 
         # --- Guiding Parameters ---
-        self.mount_gain_x = 0.7  # Gain can often be less aggressive with two-frame logic
-        self.mount_gain_y = 0.7
-        self.max_mount_correction_pix = 25.0  # Max error before skipping correction
-        self.guide_loop_delay_ms = 200  # Minimum time between mount corrections
+        self.ao_gain_x = 0.7
+        self.ao_gain_y = 0.7
+        self.max_ao_correction_pix = 25.0  # Max error before skipping correction
+        self.guide_loop_delay_ms = 200  # Minimum time between AO corrections
 
-        # --- Parameters for Two-Frame Confirmation Logic ---
         # Any star movement smaller than this magnitude is ignored as seeing/noise.
         self.seeing_threshold_pix = 0.25 
 
@@ -54,7 +53,7 @@ class guider:
         self.reset() 
 
         # Load previous calibration and gains if available
-        self.load_state("mount_guide.data")
+        self.load_state("ao_guide.data")
 
     def current_milli_time(self):
         """Returns the current time in milliseconds."""
@@ -66,24 +65,19 @@ class guider:
         self.is_guiding = False
         self.center_x = 0
         self.center_y = 0
-        self.guide_inited_mount = 0
+        self.guide_inited_ao = 0
 
         # Calibration state
-        self.mount_calibrated = False
-        self.mount_cal_state_count = 0
-        self.mount_pos_x0, self.mount_pos_y0 = 0, 0
-        self.mount_pos_x1, self.mount_pos_y1 = 0, 0
-        self.mount_pos_x2, self.mount_pos_y2 = 0, 0
-        self.mount_pos_x3, self.mount_pos_y3 = 0, 0
-        self.mount_dx1, self.mount_dy1 = 0, 0
-        self.mount_dx2, self.mount_dy2 = 0, 0
-
-        # State for two-frame confirmation logic
-        self.is_correction_pending = False
-        self.pending_correction_x = 0.0
-        self.pending_correction_y = 0.0
+        self.ao_calibrated = False
+        self.ao_cal_state_count = 0
+        self.ao_pos_x0, self.ao_pos_y0 = 0, 0
+        self.ao_pos_x1, self.ao_pos_y1 = 0, 0
+        self.ao_pos_x2, self.ao_pos_y2 = 0, 0
+        self.ao_pos_x3, self.ao_pos_y3 = 0, 0
+        self.ao_dx1, self.ao_dy1 = 0, 0
+        self.ao_dx2, self.ao_dy2 = 0, 0
         
-        self.last_mount_bump_time = self.current_milli_time()
+        self.last_ao_bump_time = self.current_milli_time()
 
         # Guiding RMS stats
         self.guiding_errors_x = []
@@ -95,13 +89,12 @@ class guider:
 
     def start_guide(self):
         """Enables the guiding flag and resets guiding statistics."""
-        if not self.mount_calibrated:
-            log.warning("Mount not calibrated. Cannot start guiding.")
+        if not self.ao_calibrated:
+            log.warning("AO not calibrated. Cannot start guiding.")
             return
-        log.info("Starting mount guiding")
+        log.info("Starting AO guiding")
         self.is_guiding = True
-        self.guide_inited_mount = 0  # Re-initialize center on start
-        self.is_correction_pending = False # Reset pending state
+        self.guide_inited_ao = 0  # Re-initialize center on start
         
         # Reset RMS stats
         self.guiding_errors_x.clear()
@@ -116,9 +109,8 @@ class guider:
 
     def stop_guide(self):
         """Disables the guiding flag and calculates final RMS."""
-        log.info("Stopping mount guiding")
+        log.info("Stopping AO guiding")
         self.is_guiding = False
-        self.is_correction_pending = False # Reset pending state
 
         # Calculate final RMS for the session
         if len(self.guiding_errors_x) > 1:
@@ -131,14 +123,14 @@ class guider:
         self.guiding_errors_y.clear()
 
     def save_state(self, filename):
-        """Saves the mount calibration data and gains to a file."""
-        if not self.mount_calibrated:
-            log.warning("Mount not calibrated. Skipping saving state.")
+        """Saves the AO calibration data and gains to a file."""
+        if not self.ao_calibrated:
+            log.warning("AO not calibrated. Skipping saving state.")
             return
         settings = {
-            'mount_dx1': self.mount_dx1, 'mount_dy1': self.mount_dy1,
-            'mount_dx2': self.mount_dx2, 'mount_dy2': self.mount_dy2,
-            'mount_gain_x': self.mount_gain_x, 'mount_gain_y': self.mount_gain_y,
+            'ao_dx1': self.ao_dx1, 'ao_dy1': self.ao_dy1,
+            'ao_dx2': self.ao_dx2, 'ao_dy2': self.ao_dy2,
+            'ao_gain_x': self.ao_gain_x, 'ao_gain_y': self.ao_gain_y,
         }
         try:
             with open(filename, "wb") as f:
@@ -148,135 +140,135 @@ class guider:
             log.error(f"Error saving guider state to {filename}: {e}", exc_info=True)
 
     def load_state(self, filename):
-        """Loads mount calibration data and gains from a file."""
+        """Loads AO calibration data and gains from a file."""
         try:
             with open(filename, "rb") as f:
                 settings = pickle.load(f)
             
-            self.mount_dx1 = settings.get('mount_dx1', 0)
-            self.mount_dy1 = settings.get('mount_dy1', 0)
-            self.mount_dx2 = settings.get('mount_dx2', 0)
-            self.mount_dy2 = settings.get('mount_dy2', 0)
-            self.mount_gain_x = settings.get('mount_gain_x', 0.7)
-            self.mount_gain_y = settings.get('mount_gain_y', 0.7)
+            self.ao_dx1 = settings.get('ao_dx1', 0)
+            self.ao_dy1 = settings.get('ao_dy1', 0)
+            self.ao_dx2 = settings.get('ao_dx2', 0)
+            self.ao_dy2 = settings.get('ao_dy2', 0)
+            self.ao_gain_x = settings.get('ao_gain_x', 0.7)
+            self.ao_gain_y = settings.get('ao_gain_y', 0.7)
 
-            det = self.mount_dx1 * self.mount_dy2 - self.mount_dx2 * self.mount_dy1
+            det = self.ao_dx1 * self.ao_dy2 - self.ao_dx2 * self.ao_dy1
             if abs(det) > 1e-3:
-                self.mount_calibrated = True
-                log.info(f"Guider state loaded from {filename}. Mount is considered calibrated.")
-                log.info(f"Loaded cal: dx1={self.mount_dx1:.2f}, dy1={self.mount_dy1:.2f}, dx2={self.mount_dx2:.2f}, dy2={self.mount_dy2:.2f}")
+                self.ao_calibrated = True
+                log.info(f"Guider state loaded from {filename}. AO is considered calibrated.")
+                log.info(f"Loaded cal: dx1={self.ao_dx1:.2f}, dy1={self.ao_dy1:.2f}, dx2={self.ao_dx2:.2f}, dy2={self.ao_dy2:.2f}")
             else:
-                log.warning(f"Loaded state from {filename}, but calibration values seem invalid (det={det:.4f}). Mount requires re-calibration.")
-                self.mount_calibrated = False
+                log.warning(f"Loaded state from {filename}, but calibration values seem invalid (det={det:.4f}). AO requires re-calibration.")
+                self.ao_calibrated = False
         except FileNotFoundError:
-            log.warning(f"State file {filename} not found. Using default values. Mount requires calibration.")
+            log.warning(f"State file {filename} not found. Using default values. AO requires calibration.")
             self.reset()
         except Exception as e:
             log.error(f"Error loading guider state from {filename}: {e}. Resetting to defaults.", exc_info=True)
             self.reset()
 
-    def calibrate_mount(self, N=3):
-        """Starts the mount calibration sequence."""
+    def calibrate_ao(self, N=3):
+        """Starts the AO calibration sequence."""
         if self.is_guiding:
-            log.warning("Cannot calibrate mount while guiding is active.")
+            log.warning("Cannot calibrate AO while guiding is active.")
             return
         self.reset() # Reset all state before starting
-        self.mount_cal_state_count = 40 
-        self.mount_calibrated = False
+        self.ao_cal_state_count = 40 
+        self.ao_calibrated = False
         self._calibration_jog_amount = N
-        log.info(f"Starting Mount Calibration with jog amount N={N}")
+        log.info(f"Starting AO Calibration with jog amount N={N}")
 
-    def handle_calibrate_mount(self, x, y):
-        """Processes a single step in the mount calibration state machine."""
+    def handle_calibrate_ao(self, x, y):
+        """Processes a single step in the AO calibration state machine."""
         N = self._calibration_jog_amount
-        log.debug(f"Handling mount calibration step {self.mount_cal_state_count} at pixel: ({x:.2f}, {y:.2f})")
+        log.debug(f"Handling AO calibration step {self.ao_cal_state_count} at pixel: ({x:.2f}, {y:.2f})")
 
-        if self.mount_cal_state_count == 40:
-            self.mount_pos_x0, self.mount_pos_y0 = x, y
-            log.info(f"Calib Step 1/4: Recorded initial position ({x:.2f}, {y:.2f}). Jogging mount +X...")
+        if self.ao_cal_state_count == 40:
+            self.ao_pos_x0, self.ao_pos_y0 = x, y
+            log.info(f"Calib Step 1/4: Recorded initial position ({x:.2f}, {y:.2f}). Jogging AO +X...")
             time.sleep(0.5)
-            self.fbump_mount(N, 0)
-        elif self.mount_cal_state_count == 30:
-            self.mount_pos_x1, self.mount_pos_y1 = x, y
+            self.fbump_ao(N, 0)
+        elif self.ao_cal_state_count == 30:
+            self.ao_pos_x1, self.ao_pos_y1 = x, y
             log.info(f"Calib Step 2/4: Position after +X jog ({x:.2f}, {y:.2f}). Returning to center...")
             time.sleep(0.5)
-            self.fbump_mount(-N, 0)
-        elif self.mount_cal_state_count == 20:
-            self.mount_pos_x2, self.mount_pos_y2 = x, y
-            log.info(f"Calib Step 3/4: Position after return ({x:.2f}, {y:.2f}). Jogging mount +Y...")
+            self.fbump_ao(-N, 0)
+        elif self.ao_cal_state_count == 20:
+            self.ao_pos_x2, self.ao_pos_y2 = x, y
+            log.info(f"Calib Step 3/4: Position after return ({x:.2f}, {y:.2f}). Jogging AO +Y...")
             time.sleep(0.5)
-            self.fbump_mount(0, N)
-        elif self.mount_cal_state_count == 10:
-            self.mount_pos_x3, self.mount_pos_y3 = x, y
+            self.fbump_ao(0, N)
+        elif self.ao_cal_state_count == 10:
+            self.ao_pos_x3, self.ao_pos_y3 = x, y
             log.info(f"Calib Step 4/4: Position after +Y jog ({x:.2f}, {y:.2f}). Returning to center...")
             time.sleep(0.5)
-            self.fbump_mount(0, -N)
-        elif self.mount_cal_state_count == 1:
+            self.fbump_ao(0, -N)
+        elif self.ao_cal_state_count == 1:
             log.info(f"Final position measurement ({x:.2f}, {y:.2f}). Calculating calibration...")
-            self.calc_calibration_mount()
+            self.calc_calibration_ao()
 
-        if self.mount_cal_state_count > 0:
-            self.mount_cal_state_count -= 1
+        if self.ao_cal_state_count > 0:
+            self.ao_cal_state_count -= 1
             
-    def calc_calibration_mount(self):
-        """Calculates the mount calibration matrix based on recorded positions."""
-        log.info("Calculating Mount calibration vectors")
+    def calc_calibration_ao(self):
+        """Calculates the AO calibration matrix based on recorded positions."""
+        log.info("Calculating AO calibration vectors")
         N = self._calibration_jog_amount
 
         # Pixel change vector for the X jog
-        self.mount_dx1 = (self.mount_pos_x1 - self.mount_pos_x0) / N
-        self.mount_dy1 = (self.mount_pos_y1 - self.mount_pos_y0) / N
+        self.ao_dx1 = (self.ao_pos_x1 - self.ao_pos_x0) / N
+        self.ao_dy1 = (self.ao_pos_y1 - self.ao_pos_y0) / N
 
         # Pixel change vector for the Y jog
-        self.mount_dx2 = (self.mount_pos_x3 - self.mount_pos_x2) / N
-        self.mount_dy2 = (self.mount_pos_y3 - self.mount_pos_y2) / N
+        self.ao_dx2 = (self.ao_pos_x3 - self.ao_pos_x2) / N
+        self.ao_dy2 = (self.ao_pos_y3 - self.ao_pos_y2) / N
 
-        log.info(f"Jog X ({N:.2f} units) -> dPix/unit: dX1={self.mount_dx1:.2f}, dY1={self.mount_dy1:.2f}")
-        log.info(f"Jog Y ({N:.2f} units) -> dPix/unit: dX2={self.mount_dx2:.2f}, dY2={self.mount_dy2:.2f}")
+        log.info(f"Jog X ({N:.2f} units) -> dPix/unit: dX1={self.ao_dx1:.2f}, dY1={self.ao_dy1:.2f}")
+        log.info(f"Jog Y ({N:.2f} units) -> dPix/unit: dX2={self.ao_dx2:.2f}, dY2={self.ao_dy2:.2f}")
 
-        det = self.mount_dx1 * self.mount_dy2 - self.mount_dx2 * self.mount_dy1
+        det = self.ao_dx1 * self.ao_dy2 - self.ao_dx2 * self.ao_dy1
         log.info(f"Calibration matrix determinant: {det:.4f}")
 
-        move_x_dist = np.sqrt((self.mount_pos_x1 - self.mount_pos_x0)**2 + (self.mount_pos_y1 - self.mount_pos_y0)**2)
-        move_y_dist = np.sqrt((self.mount_pos_x3 - self.mount_pos_x2)**2 + (self.mount_pos_y3 - self.mount_pos_y2)**2)
+        move_x_dist = np.sqrt((self.ao_pos_x1 - self.ao_pos_x0)**2 + (self.ao_pos_y1 - self.ao_pos_y0)**2)
+        move_y_dist = np.sqrt((self.ao_pos_x3 - self.ao_pos_x2)**2 + (self.ao_pos_y3 - self.ao_pos_y2)**2)
         min_move_pixels = 2.0
 
         if abs(det) < 1e-1 or move_x_dist < min_move_pixels or move_y_dist < min_move_pixels:
-            log.error(f"Mount calibration FAILED: det={det:.4f}, X move={move_x_dist:.2f}px, Y move={move_y_dist:.2f}px. Check jog amount N or star detection.")
-            self.mount_calibrated = False
-            self.mount_dx1 = self.mount_dy1 = self.mount_dx2 = self.mount_dy2 = 0
+            log.error(f"AO calibration FAILED: det={det:.4f}, X move={move_x_dist:.2f}px, Y move={move_y_dist:.2f}px. Check jog amount N or star detection.")
+            self.ao_calibrated = False
+            self.ao_dx1 = self.ao_dy1 = self.ao_dx2 = self.ao_dy2 = 0
         else:
-            log.info("Mount calibration SUCCESSFUL.")
-            self.mount_calibrated = True
-            self.save_state("mount_guide.data")
+            log.info("AO calibration SUCCESSFUL.")
+            self.ao_calibrated = True
+            self.save_state("ao_guide.data")
 
-        self.mount_cal_state_count = 0
+        self.ao_cal_state_count = 0
         del self._calibration_jog_amount
 
-    def calculate_mount_correction(self, pixel_error_x, pixel_error_y):
-        """Calculates required mount jog to correct a given pixel error."""
-        if not self.mount_calibrated:
+    def calculate_ao_correction(self, pixel_error_x, pixel_error_y):
+        """Calculates required AO jog to correct a given pixel error."""
+        if not self.ao_calibrated:
             return 0, 0
         
-        det = self.mount_dx1 * self.mount_dy2 - self.mount_dx2 * self.mount_dy1
+        det = self.ao_dx1 * self.ao_dy2 - self.ao_dx2 * self.ao_dy1
         if abs(det) < 1e-6:
-            log.warning("Mount calibration matrix determinant is near zero. Cannot invert.")
+            log.warning("AO calibration matrix determinant is near zero. Cannot invert.")
             return 0, 0
 
         # We want a pixel change opposite to the error
         target_pixel_move_x = -pixel_error_x
         target_pixel_move_y = -pixel_error_y
 
-        # Invert the calibration matrix to find the required mount jog
-        inv_m11 = self.mount_dy2 / det
-        inv_m12 = -self.mount_dx2 / det
-        inv_m21 = -self.mount_dy1 / det
-        inv_m22 = self.mount_dx1 / det
+        # Invert the calibration matrix to find the required AO jog
+        inv_m11 = self.ao_dy2 / det
+        inv_m12 = -self.ao_dx2 / det
+        inv_m21 = -self.ao_dy1 / det
+        inv_m22 = self.ao_dx1 / det
 
-        mount_jog_x = inv_m11 * target_pixel_move_x + inv_m12 * target_pixel_move_y
-        mount_jog_y = inv_m21 * target_pixel_move_x + inv_m22 * target_pixel_move_y
+        ao_jog_x = inv_m11 * target_pixel_move_x + inv_m12 * target_pixel_move_y
+        ao_jog_y = inv_m21 * target_pixel_move_x + inv_m22 * target_pixel_move_y
 
-        return mount_jog_x, mount_jog_y
+        return ao_jog_x, ao_jog_y
 
     def calculate_rms_if_needed(self):
         """Calculates RMS of guiding errors periodically."""
@@ -300,21 +292,20 @@ class guider:
         """Returns the last calculated RMS guiding error for X and Y."""
         return self.rms_x, self.rms_y
 
-    def handle_guide_mount(self, x, y):
+    def handle_guide_ao(self, x, y):
         """
-        Handles guiding logic with two-frame confirmation to avoid "chasing the seeing".
+        Handles guiding logic. Corrects for any error above the seeing threshold.
         """
-        if not self.is_guiding or not self.mount_calibrated:
+        if not self.is_guiding or not self.ao_calibrated:
             return 0, 0
 
-        if self.guide_inited_mount == 0:
+        if self.guide_inited_ao == 0:
             self.center_x, self.center_y = x, y
-            self.guide_inited_mount = 1
+            self.guide_inited_ao = 1
             log.info(f"Guiding initialized. Target center set to ({self.center_x:.2f}, {self.center_y:.2f})")
             self.reset_guiding_state()
             return 0, 0
 
-        # --- Two-Frame Confirmation Logic ---
         dx = x - self.center_x
         dy = y - self.center_y
         error_magnitude = np.sqrt(dx*dx + dy*dy)
@@ -323,82 +314,60 @@ class guider:
         self.guiding_errors_y.append(dy)
         self.calculate_rms_if_needed()
 
-        if self.is_correction_pending:
-            is_confirmed = (error_magnitude > self.seeing_threshold_pix and
-                            (dx * self.pending_correction_x) >= 0 and
-                            (dy * self.pending_correction_y) >= 0)
-
-            if not is_confirmed:
-                log.debug(f"Deviation was transient. Previous error ({self.pending_correction_x:.2f}, {self.pending_correction_y:.2f}) is now ({dx:.2f}, {dy:.2f}). Aborting correction.")
-                self.is_correction_pending = False
-                return dx, dy
-            
-            log.debug(f"Deviation CONFIRMED. Error ({dx:.2f}, {dy:.2f}). Proceeding with correction.")
-        
-        elif error_magnitude > self.seeing_threshold_pix:
-            log.debug(f"Potential deviation detected. Error ({dx:.2f}, {dy:.2f}) > threshold ({self.seeing_threshold_pix:.2f}). Waiting for next frame.")
-            self.is_correction_pending = True
-            self.pending_correction_x = dx
-            self.pending_correction_y = dy
-            return dx, dy
-
-        else: # Error is below threshold and not pending
+        if error_magnitude <= self.seeing_threshold_pix:
             log.debug(f"Error ({error_magnitude:.2f}) is within seeing threshold. No action.")
             return dx, dy
 
-        # --- Correction Block (only reached if confirmed) ---
-        self.is_correction_pending = False
-
-        if error_magnitude > self.max_mount_correction_pix:
-            log.warning(f"Guide error ({error_magnitude:.1f}px) exceeds limit ({self.max_mount_correction_pix:.1f}px). Skipping.")
+        # --- Correction Block ---
+        if error_magnitude > self.max_ao_correction_pix:
+            log.warning(f"Guide error ({error_magnitude:.1f}px) exceeds limit ({self.max_ao_correction_pix:.1f}px). Skipping.")
             return dx, dy
 
-        dt = self.current_milli_time() - self.last_mount_bump_time
+        dt = self.current_milli_time() - self.last_ao_bump_time
         if dt < self.guide_loop_delay_ms:
-            log.debug(f"Skipping mount bump: dt={dt:.0f}ms < {self.guide_loop_delay_ms}ms")
+            log.debug(f"Skipping AO bump: dt={dt:.0f}ms < {self.guide_loop_delay_ms}ms")
             return dx, dy
 
-        mount_x, mount_y = self.calculate_mount_correction(dx, dy)
-        corrected_mount_x = mount_x * self.mount_gain_x
-        corrected_mount_y = mount_y * self.mount_gain_y
+        ao_x, ao_y = self.calculate_ao_correction(dx, dy)
+        corrected_ao_x = ao_x * self.ao_gain_x
+        corrected_ao_y = ao_y * self.ao_gain_y
 
-        if abs(corrected_mount_x) > 1e-4 or abs(corrected_mount_y) > 1e-4:
-            log.debug(f"Applying mount correction: JogX={corrected_mount_x:.4f}, JogY={corrected_mount_y:.4f}")
-            self.fbump_mount(corrected_mount_x, corrected_mount_y)
-            self.last_mount_bump_time = self.current_milli_time()
+        if abs(corrected_ao_x) > 1e-4 or abs(corrected_ao_y) > 1e-4:
+            log.debug(f"Applying AO correction: JogX={corrected_ao_x:.4f}, JogY={corrected_ao_y:.4f}")
+            self.fbump_ao(corrected_ao_x, corrected_ao_y)
+            self.last_ao_bump_time = self.current_milli_time()
         
         return dx, dy
 
-    def fbump_mount(self, dx, dy):
-        """Sends a jog command to the mount, with error handling."""
-        if self.mount is not None:
+    def fbump_ao(self, dx, dy):
+        """Sends a jog command to the AO, with error handling."""
+        if self.ao is not None:
             try:
-                self.mount.bump(dx, dy)
+                self.ao.bump(dx, dy)
             except Exception as e:
-                log.error(f"Failed to send jog command to mount: {e}", exc_info=True)
+                log.error(f"Failed to send jog command to AO: {e}", exc_info=True)
         else:
-            log.warning("fbump_mount called but mount object is None.")
+            log.warning("fbump_ao called but AO object is None.")
 
     def pos_handler(self, x, y):
         """Primary handler for incoming star positions. Routes to calibration or guiding."""
         log.debug(f"pos_handler received position: ({x:.2f}, {y:.2f})")
-        if self.mount_cal_state_count > 0:
-            self.handle_calibrate_mount(x, y)
+        if self.ao_cal_state_count > 0:
+            self.handle_calibrate_ao(x, y)
             return 0, 0
         elif self.is_guiding:
-            return self.handle_guide_mount(x, y)
+            return self.handle_guide_ao(x, y)
         else: # Not guiding and not calibrating
-            if self.guide_inited_mount > 0: # Report drift from last center if guiding was stopped
+            if self.guide_inited_ao > 0: # Report drift from last center if guiding was stopped
                 return x - self.center_x, y - self.center_y
             return 0, 0
 
     def reset_guiding_state(self):
         """Resets timers and states associated with an active guide session."""
-        self.last_mount_bump_time = self.current_milli_time()
+        self.last_ao_bump_time = self.current_milli_time()
         self.last_rms_calculation_time = self.current_milli_time()
         self.guiding_errors_x.clear()
         self.guiding_errors_y.clear()
-        self.is_correction_pending = False
 
     def set_pos(self, x, y):
         """Manually sets the target guide star position."""
@@ -406,7 +375,7 @@ class guider:
         self.center_x = x
         self.center_y = y
         if self.is_guiding:
-            self.guide_inited_mount = 1
+            self.guide_inited_ao = 1
             self.reset_guiding_state()
 
     def offset(self, dx, dy):
@@ -429,14 +398,14 @@ class guider:
 if __name__ == "__main__":
     
     # --- Mock Objects for Testing ---
-    class MockMount:
+    class MockAO:
         def __init__(self):
-            # Simulate a mount's true physical response to jog commands
+            # Simulate a AO's true physical response to jog commands
             self.true_dx1 = 15.0  # Pixels X change for +1 unit X jog
             self.true_dy1 = 2.0   # Pixels Y change for +1 unit X jog (axis non-orthogonality)
             self.true_dx2 = -1.0  # Pixels X change for +1 unit Y jog (axis non-orthogonality)
             self.true_dy2 = 12.0  # Pixels Y change for +1 unit Y jog
-            print("MOCK MOUNT: Initialized with TRUE response matrix.")
+            print("MOCK AO: Initialized with TRUE response matrix.")
 
         def jog(self, dx, dy):
             global mock_star_x, mock_star_y
@@ -444,7 +413,7 @@ if __name__ == "__main__":
             pixel_change_y = self.true_dy1 * dx + self.true_dy2 * dy
             mock_star_x += pixel_change_x
             mock_star_y += pixel_change_y
-            log.debug(f"MOCK MOUNT: Jog ({dx:.4f}, {dy:.4f}). Star moved by ({pixel_change_x:+.2f}, {pixel_change_y:+.2f})px -> New pos ({mock_star_x:.2f}, {mock_star_y:.2f})")
+            log.debug(f"MOCK AO: Jog ({dx:.4f}, {dy:.4f}). Star moved by ({pixel_change_x:+.2f}, {pixel_change_y:+.2f})px -> New pos ({mock_star_x:.2f}, {mock_star_y:.2f})")
 
     class MockCamera:
         def get_star_position(self):
@@ -461,34 +430,34 @@ if __name__ == "__main__":
 
     # --- Simulation Setup ---
     print("\n" + "="*20 + " Guider Simulation Start " + "="*20)
-    mock_mount = MockMount()
+    mock_ao = MockAO()
     mock_camera = MockCamera()
 
     # Global variable for star position shared between mocks
     mock_star_x = 200.0
     mock_star_y = 250.0
 
-    the_guider = Guider(mock_mount, mock_camera)
+    the_guider = guider(mock_ao, mock_camera)
 
     # --- Run Calibration ---
     print("\n--- Starting Calibration ---")
-    the_guider.calibrate_mount(N=0.2)
+    the_guider.calibrate_ao(N=0.2)
 
     max_cal_frames = 50
     frame_count = 0
-    while the_guider.mount_cal_state_count > 0 and frame_count < max_cal_frames:
+    while the_guider.ao_cal_state_count > 0 and frame_count < max_cal_frames:
         frame_count += 1
         current_x, current_y = mock_camera.get_star_position()
         log.debug(f"Sim Cal Frame {frame_count}: Star at ({current_x:.2f}, {current_y:.2f})")
         the_guider.pos_handler(current_x, current_y)
         time.sleep(0.05) 
 
-    if not the_guider.mount_calibrated:
+    if not the_guider.ao_calibrated:
         print("\n--- Calibration Failed. Exiting. ---")
     else:
         print("\n--- Calibration Complete ---")
-        log.info(f"Guider Calculated dX/JogX = {the_guider.mount_dx1:.2f}, dY/JogX = {the_guider.mount_dy1:.2f}")
-        log.info(f"Guider Calculated dX/JogY = {the_guider.mount_dx2:.2f}, dY/JogY = {the_guider.mount_dy2:.2f}")
+        log.info(f"Guider Calculated dX/JogX = {the_guider.ao_dx1:.2f}, dY/JogX = {the_guider.ao_dy1:.2f}")
+        log.info(f"Guider Calculated dX/JogY = {the_guider.ao_dx2:.2f}, dY/JogY = {the_guider.ao_dy2:.2f}")
 
         # --- Run Guiding ---
         print("\n--- Starting Guiding Simulation ---")
@@ -500,7 +469,7 @@ if __name__ == "__main__":
             
             dx, dy = the_guider.pos_handler(current_x, current_y)
             
-            if the_guider.is_guiding and the_guider.guide_inited_mount > 0:
+            if the_guider.is_guiding and the_guider.guide_inited_ao > 0:
                 rms_x, rms_y = the_guider.get_guide_rms()
                 dist = np.sqrt(dx*dx + dy*dy)
                 print(f"  -> Target({the_guider.center_x:.2f}, {the_guider.center_y:.2f}), Error({dx:+.2f}, {dy:+.2f}), Dist:{dist:.2f}, RMS(X={rms_x:.2f}, Y={rms_y:.2f})")
