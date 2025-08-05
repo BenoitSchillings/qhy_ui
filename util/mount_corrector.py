@@ -86,19 +86,19 @@ class MountCorrector:
         if self.mount_cal_state_count == 40:
             self.mount_pos_x0, self.mount_pos_y0 = x, y
             log.info(f"Calib Step 1/4: Recorded initial position ({x:.2f}, {y:.2f}). Jogging mount +RA...")
-            self.skyx.bump_ra(N)
+            self.skyx.bump(N, 0)
         elif self.mount_cal_state_count == 30:
             self.mount_pos_x1, self.mount_pos_y1 = x, y
             log.info(f"Calib Step 2/4: Position after +RA jog ({x:.2f}, {y:.2f}). Returning to center...")
-            self.skyx.bump_ra(-N)
+            self.skyx.bump(-N, 0)
         elif self.mount_cal_state_count == 20:
             self.mount_pos_x2, self.mount_pos_y2 = x, y
             log.info(f"Calib Step 3/4: Position after return ({x:.2f}, {y:.2f}). Jogging mount +DEC...")
-            self.skyx.bump_dec(N)
+            self.skyx.bump(0, N)
         elif self.mount_cal_state_count == 10:
             self.mount_pos_x3, self.mount_pos_y3 = x, y
             log.info(f"Calib Step 4/4: Position after +DEC jog ({x:.2f}, {y:.2f}). Returning to center...")
-            self.skyx.bump_dec(-N)
+            self.skyx.bump(0, -N)
         elif self.mount_cal_state_count == 1:
             log.info(f"Final position measurement ({x:.2f}, {y:.2f}). Calculating calibration...")
             self.calc_calibration_mount()
@@ -168,13 +168,12 @@ class MountCorrector:
         # 2. What mount jog is needed to correct this pixel drift?
         # This uses the mount calibration matrix (arcsec/pixel)
         jog_ra, jog_dec = self.calculate_mount_correction(pico_pixel_dx, pico_pixel_dy)
-        log.info(f"Calculated mount correction: RA={jog_ra:.2f}\", DEC={jog_dec:.2f}")
+        log.info(f"Calculated mount correction: RA={jog_ra:.2f}\", DEC={jog_dec:.2f}\"")
 
         # 3. Apply the correction
         if abs(jog_ra) > 0.1 or abs(jog_dec) > 0.1:
             log.info("Applying mount correction.")
-            self.skyx.bump_ra(jog_ra)
-            self.skyx.bump_dec(jog_dec)
+            self.skyx.bump(jog_ra, jog_dec)
             return True
         else:
             log.info("Mount correction is too small. Skipping.")
