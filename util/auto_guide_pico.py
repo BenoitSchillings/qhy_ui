@@ -520,7 +520,7 @@ if __name__ == "__main__":
     parser.add_argument("-cam", "--cam", type=str, default = "220", help="cam name")
     args = parser.parse_args()
 
-    skyx_controller = skyx.skyx()
+    skyx_controller = skyx.sky6RASCOMTele()
     mount_corrector = MountCorrector(skyx_controller)
     pico_dev = pico_AO()
 
