@@ -10,6 +10,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QPainter, QColor, QPolygonF, QBrush, QPen, QFont, QTransform
 from PyQt5.QtCore import Qt, QPointF, pyqtSignal
 
+# --- New Import for Focuser Control ---
+from focuser_control import FocuserControlWidget
+
 # Attempt to import the skyx module, but don't fail if it's not there.
 try:
     from skyx import sky6RASCOMTele, SkyxConnectionError
@@ -273,8 +276,11 @@ class NavigatorWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Telescope Navigator")
-        self.setGeometry(100, 100, 500, 650) # Increased height for menu bar
+        self.setGeometry(100, 100, 500, 800) # Increased height for new widget
         
+        # --- Set Window to Float on Top ---
+        self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+
         self.settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'navigator_settings.json')
         self.bookmarks_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'navigator_bookmarks.json')
         self.bookmarks = []
@@ -337,6 +343,18 @@ class NavigatorWindow(QWidget):
             QMenu::item:selected {
                 background-color: #5DADE2;
             }
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                border: 1px solid #566573;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+            }
         """)
 
         main_layout = QVBoxLayout(self)
@@ -367,6 +385,10 @@ class NavigatorWindow(QWidget):
         flip_layout.addWidget(flip_v_button)
         controls_layout.addLayout(flip_layout)
         main_layout.addLayout(controls_layout)
+
+        # --- Add the Focuser Control Widget ---
+        self.focuser_control = FocuserControlWidget()
+        main_layout.addWidget(self.focuser_control)
 
         self.status_label = QLabel()
         self.status_label.setObjectName("StatusLabel")
@@ -448,7 +470,7 @@ class NavigatorWindow(QWidget):
         elif d_ra == 0.0 and d_dec == 0.0:
             action = "IDLE"
         else:
-            action = f"SLEWING (RA: {d_ra:+.2f}\", Dec: {d_dec:+.2f}\")"
+            action = f"SLEWING (RA: {d_ra:+.2f}\", Dec: {d_dec:+.2f}")"
 
         self.status_label.setText(f"MODE: {mode} | STATUS: {action}")
 
@@ -506,3 +528,4 @@ if __name__ == '__main__':
     window = NavigatorWindow()
     window.show()
     sys.exit(app.exec_())
+
