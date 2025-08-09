@@ -49,7 +49,7 @@ class ao:
         self.goto(0, 0)
 
     def clip_position(self, value):
-        MAX = 1000  # Adjust as needed
+        MAX = 20000  # Adjust as needed
         return max(-MAX, min(MAX, value))
 
     def calculate_motor_movements(self, angle_x, angle_y):

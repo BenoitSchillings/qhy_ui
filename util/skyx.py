@@ -284,12 +284,14 @@ class sky6RASCOMTele(object):
         time.sleep(1)
         
     def bump(self, dx, dy):
+        self.jog(dx, dy) 
+        return 
         dx = dx * 1000
         dy = dy * 1000
-        dx = max(dx, -999)
-        dx = min(dx, 999)
-        dy = max(dy, -999)
-        dy = min(dy, 999)
+        dx = max(dx, -2999)
+        dx = min(dx, 2999)
+        dy = max(dy, -2999)
+        dy = min(dy, 2999)
         quote = '"'
         
         cmd = ""

@@ -458,7 +458,7 @@ class UI:
         
         pico_x, pico_y = pico_device.get_ao()
         if self.mount_corrector.correct_mount_drift(pico_x, pico_y, self.guider):
-            pico_device.zero()
+            #pico_device.zero()
             self.pico_offset_buffer.clear()
             log_main.info("Pico centered after mount correction.")
         self.last_mount_correction_time = time.time()

@@ -70,7 +70,7 @@ class MountCorrector:
             log.error(f"Error loading mount corrector state from {filename}: {e}. Resetting to defaults.", exc_info=True)
             self.reset()
 
-    def calibrate_mount(self, N=10):
+    def calibrate_mount(self, N=0.5):
         """Starts the mount calibration sequence."""
         self.reset()
         self.mount_cal_state_count = 40 
@@ -159,16 +159,18 @@ class MountCorrector:
             log.warning("Cannot correct mount drift: Mount or AO is not calibrated.")
             return
 
+        print("offset is ", pico_offset_x, pico_offset_y)
+
         # 1. How many pixels did the PICO offset correspond to?
         # This requires the AO calibration matrix (pixels/pico_unit)
         pico_pixel_dx = ao_guider.ao_dx1 * pico_offset_x + ao_guider.ao_dx2 * pico_offset_y
         pico_pixel_dy = ao_guider.ao_dy1 * pico_offset_x + ao_guider.ao_dy2 * pico_offset_y
-        log.info(f"PICO offset ({pico_offset_x}, {pico_offset_y}) corresponds to a star drift of ({pico_pixel_dx:.2f}, {pico_pixel_dy:.2f}) pixels.")
+        print(f"PICO offset ({pico_offset_x}, {pico_offset_y}) corresponds to a star drift of ({pico_pixel_dx:.2f}, {pico_pixel_dy:.2f}) pixels.")
 
         # 2. What mount jog is needed to correct this pixel drift?
         # This uses the mount calibration matrix (arcsec/pixel)
         jog_ra, jog_dec = self.calculate_mount_correction(pico_pixel_dx, pico_pixel_dy)
-        log.info(f"Calculated mount correction: RA={jog_ra:.2f}\", DEC={jog_dec:.2f}\"")
+        print(f"Calculated mount correction: RA={jog_ra:.2f}\", DEC={jog_dec:.2f}\"")
 
         # 3. Apply the correction
         if abs(jog_ra) > 0.1 or abs(jog_dec) > 0.1:
