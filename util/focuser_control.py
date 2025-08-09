@@ -97,7 +97,7 @@ class FocuserControlWidget(QGroupBox):
 
     def update_position(self):
         """
-        Fetches the current position from the focuser and updates the display.
+        Fetches the current position from focus_pos.txt and updates the display.
         """
         if self.is_simulated:
             # In sim mode, the position is just what's in the box.
@@ -106,10 +106,15 @@ class FocuserControlWidget(QGroupBox):
                  self.pos_display.setText("10000")
         else:
             try:
-                pos = self.focuser.get_pos()
+                # Read position from the text file
+                with open('focus_pos.txt', 'r') as f:
+                    pos = f.read().strip()
                 self.pos_display.setText(str(pos))
+            except FileNotFoundError:
+                print("Error: focus_pos.txt not found.")
+                self.pos_display.setText("No File")
             except Exception as e:
-                print(f"Error getting focuser position: {e}")
+                print(f"Error reading focuser position from file: {e}")
                 self.pos_display.setText("Error")
 
 if __name__ == '__main__':
