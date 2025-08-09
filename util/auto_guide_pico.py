@@ -345,7 +345,7 @@ class UI:
         self.bump_button.clicked.connect(self.rand_move)
   
         self.win.show()
-        self.last_mount_correction_time = time.time()
+        self.last_recenter_check_time = time.time()
     
     def rand_move(self):
         self.guider.bump(0.5, 0.5)
@@ -490,10 +490,17 @@ class UI:
         elif self.guider.is_guiding:
             self.guider.pos_handler(self.cx, self.cy)
 
-    def handle_periodic_mount_correction(self):
-        """Checks if it's time to correct for mount drift and does so."""
-        if self.guider.is_guiding and (time.time() - self.last_mount_correction_time > 600):
-            self.recenter_mount()
+    def handle_periodic_recenter_check(self):
+        """Periodically checks if the AO has drifted too far and triggers a mount recenter."""
+        if self.guider.is_guiding and (time.time() - self.last_recenter_check_time > 60):
+            pico_x, pico_y = pico_device.get_ao()
+            log_main.info(f"Periodic check: Pico offset = ({pico_x}, {pico_y})")
+
+            if abs(pico_x) > 150 or abs(pico_y) > 150:
+                log_main.info(f"Pico offset > 150, triggering mount recenter.")
+                self.recenter_mount()
+            
+            self.last_recenter_check_time = time.time()
 
     def mainloop(self, args, camera):
         finder = HighValueFinder()
@@ -506,7 +513,7 @@ class UI:
             
             self.ipc_check()
             self.handle_guiding_and_calibration()
-            self.handle_periodic_mount_correction()
+            self.handle_periodic_recenter_check()
 
             self.idx += 1
             self.t1 = time.perf_counter()
