@@ -177,8 +177,9 @@ class MountCorrector:
         print(f"PICO offset ({pico_offset_x}, {pico_offset_y}) corresponds to a star drift of ({pico_pixel_dx:.2f}, {pico_pixel_dy:.2f}) pixels.")
 
         # 2. What mount jog is needed to correct this pixel drift?
-        # This uses the mount calibration matrix (seconds/pixel)
-        jog_ra, jog_dec = self.calculate_mount_correction(pico_pixel_dx, pico_pixel_dy)
+        # The pico_pixel_dx/dy is the CORRECTION the AO is applying.
+        # The star's ERROR is the negative of that.
+        jog_ra, jog_dec = self.calculate_mount_correction(-pico_pixel_dx, -pico_pixel_dy)
         logging.getLogger('aoscale').info(f"STEP 2: Calculated Mount Jog=({jog_ra:.4f}, {jog_dec:.4f}) seconds")
         print(f"Calculated mount correction: RA={jog_ra:.2f}s, DEC={jog_dec:.2f}s")
 
