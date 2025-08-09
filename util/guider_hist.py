@@ -189,22 +189,22 @@ class guider:
             self.ao_pos_x0, self.ao_pos_y0 = x, y
             log.info(f"Calib Step 1/4: Recorded initial position ({x:.2f}, {y:.2f}). Jogging AO +X...")
             time.sleep(0.5)
-            self.fbump_ao(N, 0)
+            self.fbump_ao(N * 100, 0)
         elif self.ao_cal_state_count == 30:
             self.ao_pos_x1, self.ao_pos_y1 = x, y
             log.info(f"Calib Step 2/4: Position after +X jog ({x:.2f}, {y:.2f}). Returning to center...")
             time.sleep(0.5)
-            self.fbump_ao(-N, 0)
+            self.fbump_ao(-N * 100, 0)
         elif self.ao_cal_state_count == 20:
             self.ao_pos_x2, self.ao_pos_y2 = x, y
             log.info(f"Calib Step 3/4: Position after return ({x:.2f}, {y:.2f}). Jogging AO +Y...")
             time.sleep(0.5)
-            self.fbump_ao(0, N)
+            self.fbump_ao(0, N * 100)
         elif self.ao_cal_state_count == 10:
             self.ao_pos_x3, self.ao_pos_y3 = x, y
             log.info(f"Calib Step 4/4: Position after +Y jog ({x:.2f}, {y:.2f}). Returning to center...")
             time.sleep(0.5)
-            self.fbump_ao(0, -N)
+            self.fbump_ao(0, -N * 100)
         elif self.ao_cal_state_count == 1:
             log.info(f"Final position measurement ({x:.2f}, {y:.2f}). Calculating calibration...")
             self.calc_calibration_ao()

@@ -69,11 +69,12 @@ class pico_AO:
         pass
 
     def bump(self, dx, dy):
-        pico_dx = int(dx * 100)
-        pico_dy = int(dy * 100)
+        # This method now expects dx and dy to be in the final physical units.
+        pico_dx = int(dx)
+        pico_dy = int(dy)
         
         log_main.debug(f"Bumping pico AO: dx={pico_dx}, dy={pico_dy}")
-        logging.getLogger('aoscale').info(f"PICO BUMP: Input=({dx:.4f}, {dy:.4f}), Scaled=({pico_dx}, {pico_dy})")
+        logging.getLogger('aoscale').info(f"PICO BUMP: Physical Units=({pico_dx}, {pico_dy})")
         pico_device.move_relative(pico_dx, pico_dy)
 
 #--------------------------------------------------------
