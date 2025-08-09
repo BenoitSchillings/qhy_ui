@@ -34,22 +34,26 @@ from mount_corrector import MountCorrector
 import logging
 
 
-
+# Setup for the main application log
 log_main = logging.getLogger(__name__)
 log_main.setLevel(logging.INFO)
+file_handler_main = logging.FileHandler('centroid.log')
+stream_handler_main = logging.StreamHandler()
+formatter_main = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler_main.setFormatter(formatter_main)
+stream_handler_main.setFormatter(formatter_main)
+log_main.addHandler(file_handler_main)
+log_main.addHandler(stream_handler_main)
 
-# Create a file handler and a stream handler
-file_handler = logging.FileHandler('centroid.log')
-stream_handler = logging.StreamHandler()
+# Setup for the new problem-specific log file
+log_aoscale = logging.getLogger('aoscale')
+log_aoscale.setLevel(logging.INFO)
+file_handler_aoscale = logging.FileHandler('aoscale.log', mode='w') # 'w' to overwrite on each run
+formatter_aoscale = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s')
+file_handler_aoscale.setFormatter(formatter_aoscale)
+log_aoscale.addHandler(file_handler_aoscale)
 
-# Create a formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-stream_handler.setFormatter(formatter)
-
-# Add the handlers to the logger
-log_main.addHandler(file_handler)
-log_main.addHandler(stream_handler)
+log_aoscale.info("AOSCALE LOGGING STARTED")
 
 
 ipc = IPC()
@@ -69,6 +73,7 @@ class pico_AO:
         pico_dy = int(dy * 100)
         
         log_main.debug(f"Bumping pico AO: dx={pico_dx}, dy={pico_dy}")
+        logging.getLogger('aoscale').info(f"PICO BUMP: Input=({dx:.4f}, {dy:.4f}), Scaled=({pico_dx}, {pico_dy})")
         pico_device.move_relative(pico_dx, pico_dy)
 
 #--------------------------------------------------------

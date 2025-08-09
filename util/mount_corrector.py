@@ -76,11 +76,13 @@ class MountCorrector:
         self.mount_cal_state_count = 40 
         self.mount_calibrated = False
         self._calibration_jog_amount = N  # Jog in arcseconds
+        logging.getLogger('aoscale').info(f"--- START MOUNT CALIBRATION --- Jog Amount N={N} arcsec")
         log.info(f"Starting Mount Calibration with jog amount N={N} arcseconds")
 
     def handle_calibrate_mount(self, x, y):
         """Processes a single step in the mount calibration state machine."""
         N = self._calibration_jog_amount
+        logging.getLogger('aoscale').info(f"Step {self.mount_cal_state_count}: Star at ({x:.2f}, {y:.2f})")
         log.debug(f"Handling mount calibration step {self.mount_cal_state_count} at pixel: ({x:.2f}, {y:.2f})")
 
         if self.mount_cal_state_count == 40:
@@ -97,7 +99,7 @@ class MountCorrector:
             self.skyx.bump(0, N)
         elif self.mount_cal_state_count == 10:
             self.mount_pos_x3, self.mount_pos_y3 = x, y
-            log.info(f"Calib Step 4/4: Position after +DEC jog ({x:.2f}, {y:.2f}). Returning to center...")
+            log.info(f"Calib Step 4/4: Position after +Y jog ({x:.2f}, {y:.2f}). Returning to center...")
             self.skyx.bump(0, -N)
         elif self.mount_cal_state_count == 1:
             log.info(f"Final position measurement ({x:.2f}, {y:.2f}). Calculating calibration...")
@@ -115,6 +117,9 @@ class MountCorrector:
         self.mount_dy1 = (self.mount_pos_y1 - self.mount_pos_y0) / N
         self.mount_dx2 = (self.mount_pos_x3 - self.mount_pos_x2) / N
         self.mount_dy2 = (self.mount_pos_y3 - self.mount_pos_y2) / N
+
+        logging.getLogger('aoscale').info(f"CALC MOUNT: N={N}, P0=({self.mount_pos_x0:.2f}, {self.mount_pos_y0:.2f}), P1=({self.mount_pos_x1:.2f}, {self.mount_pos_y1:.2f}), P2=({self.mount_pos_x2:.2f}, {self.mount_pos_y2:.2f}), P3=({self.mount_pos_x3:.2f}, {self.mount_pos_y3:.2f})")
+        logging.getLogger('aoscale').info(f"CALC MOUNT RESULT: mount_dx1={self.mount_dx1:.4f}, mount_dy1={self.mount_dy1:.4f}, mount_dx2={self.mount_dx2:.4f}, mount_dy2={self.mount_dy2:.4f}")
 
         log.info(f"Jog RA ({N:.2f} arcsec) -> dPix/arcsec: dX1={self.mount_dx1:.3f}, dY1={self.mount_dy1:.3f}")
         log.info(f"Jog DEC ({N:.2f} arcsec) -> dPix/arcsec: dX2={self.mount_dx2:.3f}, dY2={self.mount_dy2:.3f}")
@@ -159,18 +164,23 @@ class MountCorrector:
             log.warning("Cannot correct mount drift: Mount or AO is not calibrated.")
             return
 
+        logging.getLogger('aoscale').info(f"--- START MOUNT CORRECTION ---")
+        logging.getLogger('aoscale').info(f"INPUT: Pico Offset=({pico_offset_x}, {pico_offset_y})")
+        logging.getLogger('aoscale').info(f"INPUT: AO Calib=({ao_guider.ao_dx1:.4f}, {ao_guider.ao_dy1:.4f}, {ao_guider.ao_dx2:.4f}, {ao_guider.ao_dy2:.4f})")
         print("offset is ", pico_offset_x, pico_offset_y)
 
         # 1. How many pixels did the PICO offset correspond to?
         # This requires the AO calibration matrix (pixels/pico_unit)
         pico_pixel_dx = ao_guider.ao_dx1 * pico_offset_x + ao_guider.ao_dx2 * pico_offset_y
         pico_pixel_dy = ao_guider.ao_dy1 * pico_offset_x + ao_guider.ao_dy2 * pico_offset_y
+        logging.getLogger('aoscale').info(f"STEP 1: Calculated Pixel Offset=({pico_pixel_dx:.4f}, {pico_pixel_dy:.4f})")
         print(f"PICO offset ({pico_offset_x}, {pico_offset_y}) corresponds to a star drift of ({pico_pixel_dx:.2f}, {pico_pixel_dy:.2f}) pixels.")
 
         # 2. What mount jog is needed to correct this pixel drift?
         # This uses the mount calibration matrix (arcsec/pixel)
         jog_ra, jog_dec = self.calculate_mount_correction(pico_pixel_dx, pico_pixel_dy)
-        print(f"Calculated mount correction: RA={jog_ra:.2f}\", DEC={jog_dec:.2f}\"")
+        logging.getLogger('aoscale').info(f"STEP 2: Calculated Mount Jog=({jog_ra:.4f}, {jog_dec:.4f}) arcsec")
+        print(f"Calculated mount correction: RA={jog_ra:.2f}\", DEC={jog_dec:.2f}"")
 
         # 3. Apply the correction
         if abs(jog_ra) > 0.1 or abs(jog_dec) > 0.1:

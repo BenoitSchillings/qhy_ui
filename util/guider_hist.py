@@ -176,11 +176,13 @@ class guider:
         self.ao_cal_state_count = 40 
         self.ao_calibrated = False
         self._calibration_jog_amount = N
+        logging.getLogger('aoscale').info(f"--- START AO CALIBRATION --- Jog Amount N={N}")
         log.info(f"Starting AO Calibration with jog amount N={N}")
 
     def handle_calibrate_ao(self, x, y):
         """Processes a single step in the AO calibration state machine."""
         N = self._calibration_jog_amount
+        logging.getLogger('aoscale').info(f"Step {self.ao_cal_state_count}: Star at ({x:.2f}, {y:.2f})")
         log.debug(f"Handling AO calibration step {self.ao_cal_state_count} at pixel: ({x:.2f}, {y:.2f})")
 
         if self.ao_cal_state_count == 40:
@@ -215,13 +217,16 @@ class guider:
         log.info("Calculating AO calibration vectors")
         N = self._calibration_jog_amount
 
-        # Pixel change vector for the X jog
-        self.ao_dx1 = (self.ao_pos_x1 - self.ao_pos_x0) / N
-        self.ao_dy1 = (self.ao_pos_y1 - self.ao_pos_y0) / N
+        # Pixel change vector for the X jog, correcting for the 100x scaling in pico_AO.bump
+        self.ao_dx1 = (self.ao_pos_x1 - self.ao_pos_x0) / (N * 100)
+        self.ao_dy1 = (self.ao_pos_y1 - self.ao_pos_y0) / (N * 100)
 
-        # Pixel change vector for the Y jog
-        self.ao_dx2 = (self.ao_pos_x3 - self.ao_pos_x2) / N
-        self.ao_dy2 = (self.ao_pos_y3 - self.ao_pos_y2) / N
+        # Pixel change vector for the Y jog, correcting for the 100x scaling in pico_AO.bump
+        self.ao_dx2 = (self.ao_pos_x3 - self.ao_pos_x2) / (N * 100)
+        self.ao_dy2 = (self.ao_pos_y3 - self.ao_pos_y2) / (N * 100)
+
+        logging.getLogger('aoscale').info(f"CALC AO: N={N}, P0=({self.ao_pos_x0:.2f}, {self.ao_pos_y0:.2f}), P1=({self.ao_pos_x1:.2f}, {self.ao_pos_y1:.2f}), P2=({self.ao_pos_x2:.2f}, {self.ao_pos_y2:.2f}), P3=({self.ao_pos_x3:.2f}, {self.ao_pos_y3:.2f})")
+        logging.getLogger('aoscale').info(f"CALC AO RESULT: ao_dx1={self.ao_dx1:.4f}, ao_dy1={self.ao_dy1:.4f}, ao_dx2={self.ao_dx2:.4f}, ao_dy2={self.ao_dy2:.4f}")
 
         log.info(f"Jog X ({N:.2f} units) -> dPix/unit: dX1={self.ao_dx1:.2f}, dY1={self.ao_dy1:.2f}")
         log.info(f"Jog Y ({N:.2f} units) -> dPix/unit: dX2={self.ao_dx2:.2f}, dY2={self.ao_dy2:.2f}")
