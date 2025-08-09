@@ -89,6 +89,7 @@ class guider:
 
     def start_guide(self):
         """Enables the guiding flag and resets guiding statistics."""
+        log.info(f"Attempting to start guide. AO Calibrated: {self.ao_calibrated}")
         if not self.ao_calibrated:
             log.warning("AO not calibrated. Cannot start guiding.")
             return
@@ -248,7 +249,7 @@ class guider:
             self.save_state("ao_guide.data")
 
         self.ao_cal_state_count = 0
-        del self._calibration_jog_amount
+        self._calibration_jog_amount = None # Set to None instead of deleting
 
     def calculate_ao_correction(self, pixel_error_x, pixel_error_y):
         """Calculates required AO jog to correct a given pixel error."""
