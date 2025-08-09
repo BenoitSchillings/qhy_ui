@@ -514,6 +514,7 @@ class UI:
             self.ipc_check()
             self.handle_guiding_and_calibration()
             self.handle_periodic_recenter_check()
+            self.handle_periodic_rate_adjustment()
 
             self.idx += 1
             self.t1 = time.perf_counter()
@@ -524,6 +525,12 @@ class UI:
                 self.update()
 
             self.cnt += 1
+
+    def handle_periodic_rate_adjustment(self):
+        """Periodically adjusts the mount's tracking rate to counter systematic drift."""
+        if self.guider.is_guiding and (time.time() - self.mount_corrector.last_rate_adjustment_time > 300): # 5 minutes
+            self.mount_corrector.adjust_tracking_rate()
+            self.mount_corrector.last_rate_adjustment_time = time.time()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

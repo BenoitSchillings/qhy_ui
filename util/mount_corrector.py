@@ -3,6 +3,7 @@ import pickle
 import time
 import numpy as np
 import skyx
+import collections
 
 log = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class MountCorrector:
     def __init__(self, skyx_instance):
         log.info("Initializing Mount Corrector")
         self.skyx = skyx_instance
+        self.IMAGE_SCALE_ARCSEC_PER_PIXEL = 0.1375
         self.reset()
         self.load_state("mount_guide.data")
 
@@ -29,6 +31,13 @@ class MountCorrector:
         self.mount_dx1, self.mount_dy1 = 0, 0
         self.mount_dx2, self.mount_dy2 = 0, 0
 
+        # New state for tracking rate adjustment
+        self.guide_rate_ra_arcsec_per_sec = 0
+        self.guide_rate_dec_arcsec_per_sec = 0
+        self.correction_history = collections.deque(maxlen=100) # Store last 100 corrections
+        self.last_rate_adjustment_time = time.time()
+
+
     def save_state(self, filename):
         """Saves the mount calibration data to a file."""
         if not self.mount_calibrated:
@@ -37,6 +46,8 @@ class MountCorrector:
         settings = {
             'mount_dx1': self.mount_dx1, 'mount_dy1': self.mount_dy1,
             'mount_dx2': self.mount_dx2, 'mount_dy2': self.mount_dy2,
+            'guide_rate_ra_arcsec_per_sec': self.guide_rate_ra_arcsec_per_sec,
+            'guide_rate_dec_arcsec_per_sec': self.guide_rate_dec_arcsec_per_sec,
         }
         try:
             with open(filename, "wb") as f:
@@ -55,6 +66,8 @@ class MountCorrector:
             self.mount_dy1 = settings.get('mount_dy1', 0)
             self.mount_dx2 = settings.get('mount_dx2', 0)
             self.mount_dy2 = settings.get('mount_dy2', 0)
+            self.guide_rate_ra_arcsec_per_sec = settings.get('guide_rate_ra_arcsec_per_sec', 0)
+            self.guide_rate_dec_arcsec_per_sec = settings.get('guide_rate_dec_arcsec_per_sec', 0)
 
             det = self.mount_dx1 * self.mount_dy2 - self.mount_dx2 * self.mount_dy1
             if abs(det) > 1e-3:
@@ -124,6 +137,14 @@ class MountCorrector:
         log.info(f"Jog RA ({N:.2f} sec) -> dPix/sec: dX1={self.mount_dx1:.3f}, dY1={self.mount_dy1:.3f}")
         log.info(f"Jog DEC ({N:.2f} sec) -> dPix/sec: dX2={self.mount_dx2:.3f}, dY2={self.mount_dy2:.3f}")
 
+        # Calculate the effective guide rate in arcseconds/second
+        ra_move_pixels_per_sec = np.sqrt(self.mount_dx1**2 + self.mount_dy1**2)
+        dec_move_pixels_per_sec = np.sqrt(self.mount_dx2**2 + self.mount_dy2**2)
+        self.guide_rate_ra_arcsec_per_sec = ra_move_pixels_per_sec * self.IMAGE_SCALE_ARCSEC_PER_PIXEL
+        self.guide_rate_dec_arcsec_per_sec = dec_move_pixels_per_sec * self.IMAGE_SCALE_ARCSEC_PER_PIXEL
+        logging.getLogger('aoscale').info(f"CALC GUIDE RATE: RA={self.guide_rate_ra_arcsec_per_sec:.4f} arcsec/s, DEC={self.guide_rate_dec_arcsec_per_sec:.4f} arcsec/s")
+
+
         det = self.mount_dx1 * self.mount_dy2 - self.mount_dx2 * self.mount_dy1
         if abs(det) < 1e-3:
             log.error("Mount calibration FAILED: Matrix determinant is near zero.")
@@ -179,17 +200,56 @@ class MountCorrector:
         # 2. What mount jog is needed to correct this pixel drift?
         # The pico_pixel_dx/dy is the CORRECTION the AO is applying.
         # The star's ERROR is the negative of that.
-        jog_ra, jog_dec = self.calculate_mount_correction(-pico_pixel_dx, -pico_pixel_dy)
-        logging.getLogger('aoscale').info(f"STEP 2: Calculated Mount Jog=({jog_ra:.4f}, {jog_dec:.4f}) seconds")
-        print(f"Calculated mount correction: RA={jog_ra:.2f}s, DEC={jog_dec:.2f}s")
+        jog_ra_sec, jog_dec_sec = self.calculate_mount_correction(-pico_pixel_dx, -pico_pixel_dy)
+        logging.getLogger('aoscale').info(f"STEP 2: Calculated Mount Jog=({jog_ra_sec:.4f}, {jog_dec_sec:.4f}) seconds")
+        print(f"Calculated mount correction: RA={jog_ra_sec:.2f}s, DEC={jog_dec_sec:.2f}s")
 
         # 3. Apply the correction
-        if abs(jog_ra) > 0.01 or abs(jog_dec) > 0.01:
-            logging.getLogger('aoscale').info(f"APPLYING CORRECTION: Jogging mount by ({jog_ra:.4f}, {jog_dec:.4f}) seconds.")
+        if abs(jog_ra_sec) > 0.01 or abs(jog_dec_sec) > 0.01:
+            logging.getLogger('aoscale').info(f"APPLYING CORRECTION: Jogging mount by ({jog_ra_sec:.4f}, {jog_dec_sec:.4f}) seconds.")
             log.info("Applying mount correction.")
-            self.skyx.bump(jog_ra, jog_dec)
+            self.skyx.bump(jog_ra_sec, jog_dec_sec)
+            # Record the correction for long-term rate adjustment
+            self.correction_history.append({'t': time.time(), 'ra_jog': jog_ra_sec, 'dec_jog': jog_dec_sec})
             return True
         else:
-            logging.getLogger('aoscale').info(f"SKIPPING CORRECTION: Jog ({jog_ra:.4f}, {jog_dec:.4f}) is below threshold 0.01s.")
+            logging.getLogger('aoscale').info(f"SKIPPING CORRECTION: Jog ({jog_ra_sec:.4f}, {jog_dec_sec:.4f}) is below threshold 0.01s.")
             log.info("Mount correction is too small. Skipping.")
             return False
+
+    def adjust_tracking_rate(self):
+        """Analyzes correction history and applies a persistent tracking rate adjustment."""
+        if len(self.correction_history) < 10:
+            log.info("Not enough correction samples to adjust tracking rate.")
+            return
+
+        # Calculate total jog and time duration from history
+        total_ra_jog = sum(c['ra_jog'] for c in self.correction_history)
+        total_dec_jog = sum(c['dec_jog'] for c in self.correction_history)
+        
+        time_delta = self.correction_history[-1]['t'] - self.correction_history[0]['t']
+        if time_delta < 1.0: # Avoid division by zero
+            return
+
+        # Calculate drift rate in jog_seconds / wall_seconds
+        drift_ra_jog_per_sec = total_ra_jog / time_delta
+        drift_dec_jog_per_sec = total_dec_jog / time_delta
+
+        # Convert drift rate to arcseconds/second using the calibrated guide rate
+        # The negative sign is because we want to apply a rate that is OPPOSITE to the drift.
+        rate_correction_ra = -1 * drift_ra_jog_per_sec * self.guide_rate_ra_arcsec_per_sec
+        rate_correction_dec = -1 * drift_dec_jog_per_sec * self.guide_rate_dec_arcsec_per_sec
+
+        logging.getLogger('aoscale').info(f"--- ADJUST TRACKING RATE ---")
+        logging.getLogger('aoscale').info(f"Found {len(self.correction_history)} corrections over {time_delta:.1f}s.")
+        logging.getLogger('aoscale').info(f"Total Jog: RA={total_ra_jog:.3f}s, DEC={total_dec_jog:.3f}s")
+        logging.getLogger('aoscale').info(f"Drift Rate (jog s/s): RA={drift_ra_jog_per_sec:.4f}, DEC={drift_dec_jog_per_sec:.4f}")
+        logging.getLogger('aoscale').info(f"Rate Correction (arcsec/s): RA={rate_correction_ra:.4f}, DEC={rate_correction_dec:.4f}")
+
+        # Apply the new rate to the mount
+        # Note: TheSkyX SetTracking adds to the existing rate, so we send the correction directly.
+        self.skyx.rate(rate_correction_ra, rate_correction_dec)
+        log.info(f"Applied tracking rate correction: RA={rate_correction_ra:.4f}, DEC={rate_correction_dec:.4f} arcsec/s")
+
+        # Clear history so the next adjustment is based on new data
+        self.correction_history.clear()
