@@ -36,6 +36,8 @@ class MountCorrector:
         self.guide_rate_dec_arcsec_per_sec = 0
         self.correction_history = collections.deque(maxlen=100) # Store last 100 corrections
         self.last_rate_adjustment_time = time.time()
+        self.ra_bump_rate = 0.0
+        self.dec_bump_rate = 0.0
 
 
     def save_state(self, filename):
@@ -211,11 +213,41 @@ class MountCorrector:
             self.skyx.bump(jog_ra_sec, jog_dec_sec)
             # Record the correction for long-term rate adjustment
             self.correction_history.append({'t': time.time(), 'ra_jog': jog_ra_sec, 'dec_jog': jog_dec_sec})
+
+            # Calculate the trend of bumping
+            if len(self.correction_history) > 1:
+                total_ra_jog = sum(c['ra_jog'] for c in self.correction_history)
+                total_dec_jog = sum(c['dec_jog'] for c in self.correction_history)
+                time_delta = self.correction_history[-1]['t'] - self.correction_history[0]['t']
+                if time_delta > 1.0: # Avoid division by zero and ensure meaningful time has passed
+                    self.ra_bump_rate = total_ra_jog / time_delta  # seconds/second
+                    self.dec_bump_rate = total_dec_jog / time_delta # seconds/second
+                    log.info(f"Updated bump rate trend: RA={self.ra_bump_rate:.4f} s/s, DEC={self.dec_bump_rate:.4f} s/s")
+
             return True
         else:
             logging.getLogger('aoscale').info(f"SKIPPING CORRECTION: Jog ({jog_ra_sec:.4f}, {jog_dec_sec:.4f}) is below threshold 0.01s.")
             log.info("Mount correction is too small. Skipping.")
             return False
+
+    def proactive_bump(self, time_interval_seconds):
+        """Applies a small, proactive bump based on the calculated long-term drift rate."""
+        if self.ra_bump_rate == 0.0 and self.dec_bump_rate == 0.0:
+            log.info("Proactive bump skipped: No bump rate trend established yet.")
+            return
+
+        # Calculate the proactive jog needed for the given time interval
+        proactive_ra_jog = self.ra_bump_rate * time_interval_seconds
+        proactive_dec_jog = self.dec_bump_rate * time_interval_seconds
+
+        log.info(f"Calculated proactive bump: RA={proactive_ra_jog:.4f}s, DEC={proactive_dec_jog:.4f}s for {time_interval_seconds}s interval.")
+
+        # Apply the correction if it's non-trivial
+        if abs(proactive_ra_jog) > 0.01 or abs(proactive_dec_jog) > 0.01:
+            log.info(f"Applying proactive bump.")
+            self.skyx.bump(proactive_ra_jog, proactive_dec_jog)
+        else:
+            log.info("Proactive bump is too small. Skipping.")
 
     def adjust_tracking_rate(self):
         """Analyzes correction history and applies a persistent tracking rate adjustment."""

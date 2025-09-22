@@ -343,8 +343,8 @@ class sky6RASCOMTele(object):
         
         if (not(cmd is None)):
             command = """
-                var Out = "";
-                sky6RASCOMTele."""
+                var Out = \"\";
+                sky6RASCOMTele."
             command = command + cmd + "\n"
 
             print(command)
@@ -360,8 +360,8 @@ class sky6RASCOMTele(object):
         
         if (not(cmd1 is None)):
             command = """
-                var Out = "";
-                sky6RASCOMTele."""
+                var Out = \"\";
+                sky6RASCOMTele."
             command = command + cmd1 + "\n"
             #print(command)
             output = self.conn._send(command).splitlines()

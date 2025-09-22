@@ -87,6 +87,11 @@ class guider:
         self.rms_y = 0.0
         self.rms_update_interval_ms = 10000  # 10 seconds
 
+        # Dynamic Gain state
+        self.dynamic_gain_enabled = False
+        self.prev_dx = 0.0
+        self.prev_dy = 0.0
+
     def start_guide(self):
         """Enables the guiding flag and resets guiding statistics."""
         log.info(f"Attempting to start guide. AO Calibrated: {self.ao_calibrated}")
@@ -122,6 +127,11 @@ class guider:
         
         self.guiding_errors_x.clear()
         self.guiding_errors_y.clear()
+
+    def toggle_dynamic_gain(self):
+        """Toggles the dynamic gain feature on or off."""
+        self.dynamic_gain_enabled = not self.dynamic_gain_enabled
+        log.info(f"Dynamic gain {'enabled' if self.dynamic_gain_enabled else 'disabled'}.")
 
     def save_state(self, filename):
         """Saves the AO calibration data and gains to a file."""
@@ -319,6 +329,27 @@ class guider:
         self.guiding_errors_x.append(dx)
         self.guiding_errors_y.append(dy)
         self.calculate_rms_if_needed()
+
+        # --- Dynamic Gain Adjustment ---
+        if self.dynamic_gain_enabled and self.prev_dx != 0.0: # Avoid adjusting on the first frame
+            # X-axis adjustment
+            if np.sign(dx) != np.sign(self.prev_dx): # Overshoot
+                self.ao_gain_x *= 0.95
+            elif abs(dx) > self.seeing_threshold_pix: # Undershoot (still significant error)
+                self.ao_gain_x *= 1.05
+            
+            # Y-axis adjustment
+            if np.sign(dy) != np.sign(self.prev_dy): # Overshoot
+                self.ao_gain_y *= 0.95
+            elif abs(dy) > self.seeing_threshold_pix: # Undershoot
+                self.ao_gain_y *= 1.05
+
+            # Clamp gains to a safe range
+            self.ao_gain_x = np.clip(self.ao_gain_x, 0.1, 2.0)
+            self.ao_gain_y = np.clip(self.ao_gain_y, 0.1, 2.0)
+
+        self.prev_dx, self.prev_dy = dx, dy
+        # --- End Dynamic Gain ---
 
         if error_magnitude <= self.seeing_threshold_pix:
             log.debug(f"Error ({error_magnitude:.2f}) is within seeing threshold. No action.")

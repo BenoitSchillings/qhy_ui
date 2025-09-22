@@ -307,6 +307,9 @@ class UI:
         self.recenter_button = QtWidgets.QPushButton("Recenter Mount")
         rightlayout.layout().addWidget(self.recenter_button)
 
+        self.dynamic_gain_checkbox = QtWidgets.QCheckBox("Enable Dynamic Gain")
+        rightlayout.layout().addWidget(self.dynamic_gain_checkbox)
+
         self.guide_button =  QtWidgets.QPushButton("Guide")
         rightlayout.layout().addWidget(self.guide_button)
         self.bump_button =  QtWidgets.QPushButton("bump")
@@ -330,6 +333,14 @@ class UI:
         rightlayout.layout().addWidget(self.txt4)
         self.txt4.setText("status_text 4")
 
+        self.txt5 = QtWidgets.QLabel(self.win)
+        rightlayout.layout().addWidget(self.txt5)
+        self.txt5.setText("")
+
+        self.txt6 = QtWidgets.QLabel(self.win)
+        rightlayout.layout().addWidget(self.txt6)
+        self.txt6.setText("")
+
         self.statusBar.addPermanentWidget(rightlayout)
         self.win.setStatusBar(self.statusBar)
         
@@ -343,12 +354,18 @@ class UI:
         self.update_button.clicked.connect(self.Update_buttonClick)
         self.guide_button.clicked.connect(self.Guide_buttonClick)
         self.bump_button.clicked.connect(self.rand_move)
+        self.dynamic_gain_checkbox.stateChanged.connect(self.toggle_dynamic_gain_click)
   
         self.win.show()
         self.last_recenter_check_time = time.time()
+        self.last_proactive_bump_time = time.time()
     
     def rand_move(self):
         self.guider.bump(0.5, 0.5)
+
+    def toggle_dynamic_gain_click(self):
+        """Handler for the dynamic gain checkbox."""
+        self.guider.toggle_dynamic_gain()
 
     def Update_buttonClick(self):
         if (self.update_state == 1):
@@ -378,7 +395,8 @@ class UI:
             self.guide_button.setText("Guide")
         else:
             self.guider.start_guide()
-            log_main.info("Start Guide")
+            self.guider.set_pos(self.cx, self.cy)
+            log_main.info(f"Start Guide. Reference star set to ({self.cx:.2f}, {self.cy:.2f})")
             self.guide_button.setText("Stop Guide")
 
     def updateplot(self, x, y):
@@ -411,6 +429,10 @@ class UI:
         pico_x, pico_y = pico_device.get_ao()
         self.txt2.setText(f"Pico Pos: X={pico_x}, Y={pico_y}")
         self.update_pico_plot(pico_x, pico_y)
+
+        self.txt5.setText(f"Mount Bump Rate: RA={self.mount_corrector.ra_bump_rate:.4f} s/s, Dec={self.mount_corrector.dec_bump_rate:.4f} s/s")
+
+        self.txt6.setText(f"AO Gain: X={self.guider.ao_gain_x:.2f}, Y={self.guider.ao_gain_y:.2f}")
 
         if (self.cnt % 30 == 0):
             self.temp = 0
@@ -451,8 +473,9 @@ class UI:
         if (bump[0] == 0.0 and bump[1] == 0):
             return
         
-        log_main.info("IPC bump received. Triggering mount recenter.")
-        self.recenter_mount()
+        dx, dy = bump[0], bump[1]
+        log_main.info(f"IPC bump received. Offsetting guide target by dx={dx}, dy={dy}.")
+        self.guider.offset(dx, dy)
         
         # Reset the IPC trigger
         ipc.set_val("bump", [0,0])
@@ -478,7 +501,7 @@ class UI:
         self.array = result
         max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
         self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
-        log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
+        #log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
         return True
 
     def handle_guiding_and_calibration(self):
@@ -502,6 +525,21 @@ class UI:
             
             self.last_recenter_check_time = time.time()
 
+    def handle_proactive_bumping(self):
+        """Periodically applies a small mount bump based on the long-term drift trend."""
+        PROACTIVE_BUMP_INTERVAL = 30  # seconds
+        MIN_CORRECTIONS_FOR_TREND = 4
+
+        if self.guider.is_guiding and (time.time() - self.last_proactive_bump_time > PROACTIVE_BUMP_INTERVAL):
+            if len(self.mount_corrector.correction_history) >= MIN_CORRECTIONS_FOR_TREND:
+                log_main.info("Triggering proactive mount bump based on trend.")
+                self.mount_corrector.proactive_bump(PROACTIVE_BUMP_INTERVAL)
+                self.last_proactive_bump_time = time.time()
+            else:
+                log_main.info("Proactive bump check: Not enough mount corrections yet to establish a reliable trend.")
+                # Update time to avoid checking again immediately
+                self.last_proactive_bump_time = time.time()
+
     def mainloop(self, args, camera):
         finder = HighValueFinder()
         while(self.win.quit == 0):
@@ -514,6 +552,7 @@ class UI:
             self.ipc_check()
             self.handle_guiding_and_calibration()
             self.handle_periodic_recenter_check()
+            self.handle_proactive_bumping()
             self.handle_periodic_rate_adjustment()
 
             self.idx += 1
