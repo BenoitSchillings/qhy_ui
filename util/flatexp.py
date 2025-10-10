@@ -200,13 +200,22 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
 
             # Apply calibration formula
             dark_corrected = self.dark * K + bias_dark
-            flat_corrected = self.flat_field + N - self.flat_bias
 
-            # Avoid division by zero
-            flat_corrected_safe = flat_corrected.copy()
-            flat_corrected_safe[flat_corrected_safe == 0] = 1.0
+            # Remove bias and light leak offset from flat field
+            flat_corrected = self.flat_field - self.flat_bias - N
 
-            calibrated = (self.image - dark_corrected) / flat_corrected_safe
+            # Normalize flat field to mean=1 (prevents N from dominating)
+            flat_mean = np.mean(flat_corrected)
+            if flat_mean <= 0:
+                return 1e10  # Invalid flat field
+
+            flat_normalized = flat_corrected / flat_mean
+
+            # Avoid division by zero in normalized flat
+            flat_normalized_safe = flat_normalized.copy()
+            flat_normalized_safe[flat_normalized_safe <= 0] = 1.0
+
+            calibrated = (self.image - dark_corrected) / flat_normalized_safe
 
             # Calculate std/mean ratio (coefficient of variation - lower is better)
             std = np.std(calibrated)
@@ -230,10 +239,18 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         bias_dark = dark_mean * (1.0 - optimal_K)
 
         dark_corrected = self.dark * optimal_K + bias_dark
-        flat_corrected = self.flat_field + optimal_N - self.flat_bias
-        flat_corrected[flat_corrected == 0] = 1.0
 
-        calibrated_optimized = (self.image - dark_corrected) / flat_corrected
+        # Remove bias and light leak offset from flat field
+        flat_corrected = self.flat_field - self.flat_bias - optimal_N
+
+        # Normalize flat field to mean=1
+        flat_mean = np.mean(flat_corrected)
+        flat_normalized = flat_corrected / flat_mean
+
+        # Avoid division by zero
+        flat_normalized[flat_normalized <= 0] = 1.0
+
+        calibrated_optimized = (self.image - dark_corrected) / flat_normalized
 
         # Calculate final statistics
         final_variance = np.var(calibrated_optimized)
@@ -252,6 +269,7 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         print(f"Optimal dark scale (K):     {optimal_K:.4f}")
         print(f"Dark bias correction:       {bias_dark:.2f}")
         print(f"Optimal flat offset (N):    {optimal_N:.2f}")
+        print(f"Flat field mean (corrected):{flat_mean:.2f}")
         print(f"Minimized std/mean (CoV):   {optimal_ratio:.4f}")
         print(f"Image mean:                 {final_mean:.2f}")
         print(f"Image variance:             {final_variance:.2f}")
