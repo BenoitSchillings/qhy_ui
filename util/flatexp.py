@@ -190,7 +190,7 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         print("Starting calibration optimization...")
         print("="*50)
 
-        # Define the objective function to minimize (variance of calibrated image)
+        # Define the objective function to minimize (variance/mean of calibrated image)
         def objective(params):
             K, N = params
 
@@ -208,9 +208,12 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
 
             calibrated = (self.image - dark_corrected) / flat_corrected_safe
 
-            # Calculate variance (lower is better)
+            # Calculate variance/mean ratio (lower is better)
             variance = np.var(calibrated)
-            return variance
+            mean = np.mean(calibrated)
+            if mean == 0:
+                return 1e10  # Return large penalty for invalid mean
+            return variance / mean
 
         # Use differential evolution for global optimization
         print("Optimizing K (dark scale) in [0.1, 2.0] and N (flat offset) in [-5000, 5000]...")
@@ -220,7 +223,7 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
                                        atol=0.01, tol=0.01, workers=1)
 
         optimal_K, optimal_N = result.x
-        optimal_variance = result.fun
+        optimal_ratio = result.fun
 
         # Calculate the optimized calibration
         dark_mean = np.mean(self.dark)
@@ -231,6 +234,11 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         flat_corrected[flat_corrected == 0] = 1.0
 
         calibrated_optimized = (self.image - dark_corrected) / flat_corrected
+
+        # Calculate final statistics
+        final_variance = np.var(calibrated_optimized)
+        final_mean = np.mean(calibrated_optimized)
+        final_std = np.sqrt(final_variance)
 
         # Update the display with optimized image
         self.currentImage = np.rot90(calibrated_optimized)
@@ -244,8 +252,10 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         print(f"Optimal dark scale (K):     {optimal_K:.4f}")
         print(f"Dark bias correction:       {bias_dark:.2f}")
         print(f"Optimal flat offset (N):    {optimal_N:.2f}")
-        print(f"Minimized variance:         {optimal_variance:.2f}")
-        print(f"Standard deviation:         {np.sqrt(optimal_variance):.2f}")
+        print(f"Minimized variance/mean:    {optimal_ratio:.4f}")
+        print(f"Image mean:                 {final_mean:.2f}")
+        print(f"Image variance:             {final_variance:.2f}")
+        print(f"Image std deviation:        {final_std:.2f}")
         print("-"*50)
         print(f"Dark mean before:           {dark_mean:.2f}")
         print(f"Dark mean after correction: {np.mean(dark_corrected):.2f}")
@@ -258,7 +268,9 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         msg = f"Optimization complete!\n\n"
         msg += f"Optimal K (dark scale): {optimal_K:.4f}\n"
         msg += f"Optimal N (flat offset): {optimal_N:.2f}\n"
-        msg += f"Variance: {optimal_variance:.2f}\n"
+        msg += f"Variance/Mean ratio: {optimal_ratio:.4f}\n"
+        msg += f"Image mean: {final_mean:.2f}\n"
+        msg += f"Image std: {final_std:.2f}\n"
         QtWidgets.QMessageBox.information(self, 'Optimization Complete', msg)
 
 
