@@ -6,6 +6,7 @@ from PyQt5 import QtWidgets
 from util import fit_gauss_circular
 import pyqtgraph as pg
 import argparse
+from scipy.optimize import minimize_scalar, differential_evolution
 
 def compute_hfd(image):
     """
@@ -41,11 +42,21 @@ def compute_hfd(image):
 
 
 class FlatFieldViewer(QtWidgets.QMainWindow):
-    def __init__(self, calibrated_image, output_filename):
+    def __init__(self, calibrated_image, output_filename, image=None, dark=None, flat_field=None, flat_bias=None):
         super().__init__()
         self.currentImage = calibrated_image
         self.output_filename = output_filename
         self.histLevels = None
+
+        # Store original data for optimization
+        self.image = image
+        self.dark = dark
+        self.flat_field = flat_field
+        self.flat_bias = flat_bias
+
+        # Store current optimization parameters
+        self.dark_scale = 1.0
+        self.flat_offset = 0.0
 
         self.initUI()
 
@@ -107,6 +118,11 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         self.saveAction.triggered.connect(self.saveOutput)
         self.addAction(self.saveAction)
 
+        self.optimizeAction = QtWidgets.QAction("Optimize Calibration", self)
+        self.optimizeAction.setShortcut("o")
+        self.optimizeAction.triggered.connect(self.optimizeCalibration)
+        self.addAction(self.optimizeAction)
+
         self.imageView.getImageItem().mouseClickEvent = self.click
 
         # Display the calibrated image
@@ -164,6 +180,87 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
     def showFilename(self):
         print(f"Output file: {self.output_filename}")
 
+    def optimizeCalibration(self):
+        """Optimize dark scaling and flat offset to minimize variance."""
+        if self.image is None or self.dark is None or self.flat_field is None or self.flat_bias is None:
+            QtWidgets.QMessageBox.warning(self, 'Error', 'Cannot optimize: original data not available')
+            return
+
+        print("\n" + "="*50)
+        print("Starting calibration optimization...")
+        print("="*50)
+
+        # Define the objective function to minimize (variance of calibrated image)
+        def objective(params):
+            K, N = params
+
+            # Calculate bias to preserve mean: BIAS = mean(dark) * (1 - K)
+            dark_mean = np.mean(self.dark)
+            bias_dark = dark_mean * (1.0 - K)
+
+            # Apply calibration formula
+            dark_corrected = self.dark * K + bias_dark
+            flat_corrected = self.flat_field + N - self.flat_bias
+
+            # Avoid division by zero
+            flat_corrected_safe = flat_corrected.copy()
+            flat_corrected_safe[flat_corrected_safe == 0] = 1.0
+
+            calibrated = (self.image - dark_corrected) / flat_corrected_safe
+
+            # Calculate variance (lower is better)
+            variance = np.var(calibrated)
+            return variance
+
+        # Use differential evolution for global optimization
+        print("Optimizing K (dark scale) in [0.1, 2.0] and N (flat offset) in [-5000, 5000]...")
+
+        bounds = [(0.1, 2.0), (-5000, 5000)]
+        result = differential_evolution(objective, bounds, seed=42, maxiter=100,
+                                       atol=0.01, tol=0.01, workers=1)
+
+        optimal_K, optimal_N = result.x
+        optimal_variance = result.fun
+
+        # Calculate the optimized calibration
+        dark_mean = np.mean(self.dark)
+        bias_dark = dark_mean * (1.0 - optimal_K)
+
+        dark_corrected = self.dark * optimal_K + bias_dark
+        flat_corrected = self.flat_field + optimal_N - self.flat_bias
+        flat_corrected[flat_corrected == 0] = 1.0
+
+        calibrated_optimized = (self.image - dark_corrected) / flat_corrected
+
+        # Update the display with optimized image
+        self.currentImage = np.rot90(calibrated_optimized)
+        self.dark_scale = optimal_K
+        self.flat_offset = optimal_N
+
+        # Display results
+        print("\n" + "-"*50)
+        print("OPTIMIZATION RESULTS:")
+        print("-"*50)
+        print(f"Optimal dark scale (K):     {optimal_K:.4f}")
+        print(f"Dark bias correction:       {bias_dark:.2f}")
+        print(f"Optimal flat offset (N):    {optimal_N:.2f}")
+        print(f"Minimized variance:         {optimal_variance:.2f}")
+        print(f"Standard deviation:         {np.sqrt(optimal_variance):.2f}")
+        print("-"*50)
+        print(f"Dark mean before:           {dark_mean:.2f}")
+        print(f"Dark mean after correction: {np.mean(dark_corrected):.2f}")
+        print("="*50 + "\n")
+
+        # Update the display
+        self.updateImage()
+
+        # Show a message box with results
+        msg = f"Optimization complete!\n\n"
+        msg += f"Optimal K (dark scale): {optimal_K:.4f}\n"
+        msg += f"Optimal N (flat offset): {optimal_N:.2f}\n"
+        msg += f"Variance: {optimal_variance:.2f}\n"
+        QtWidgets.QMessageBox.information(self, 'Optimization Complete', msg)
+
 
 def load_fits(filename):
     """Load a FITS file and return the data."""
@@ -215,9 +312,12 @@ if __name__ == "__main__":
 
     print("Calibration complete. Launching viewer...")
     print(f"Press 's' to save to {args.output}")
+    print(f"Press 'o' to optimize calibration parameters")
 
     app = QtWidgets.QApplication(sys.argv)
-    viewer = FlatFieldViewer(calibrated_rotated, args.output)
+    viewer = FlatFieldViewer(calibrated_rotated, args.output,
+                            image=image, dark=dark,
+                            flat_field=flat_field, flat_bias=flat_bias)
     viewer.show()
 
     sys.exit(app.exec_())
