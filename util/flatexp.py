@@ -181,16 +181,17 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         print(f"Output file: {self.output_filename}")
 
     def optimizeCalibration(self):
-        """Optimize dark scaling and flat offset to minimize variance."""
+        """Optimize dark scaling and flat offset to minimize background variance."""
         if self.image is None or self.dark is None or self.flat_field is None or self.flat_bias is None:
             QtWidgets.QMessageBox.warning(self, 'Error', 'Cannot optimize: original data not available')
             return
 
         print("\n" + "="*50)
         print("Starting calibration optimization...")
+        print("Optimizing for uniform background (pixels < 75th percentile)")
         print("="*50)
 
-        # Define the objective function to minimize (std/mean of calibrated image)
+        # Define the objective function to minimize (background std/median)
         def objective(params):
             K, N = params
 
@@ -217,12 +218,21 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
 
             calibrated = (self.image - dark_corrected) / flat_normalized_safe
 
-            # Calculate std/mean ratio (coefficient of variation - lower is better)
-            std = np.std(calibrated)
-            mean = np.mean(calibrated)
-            if mean == 0:
-                return 1e10  # Return large penalty for invalid mean
-            return std / mean
+            # Focus on background uniformity (pixels below 75th percentile)
+            # This excludes bright stars and optimizes for flat background
+            threshold = np.percentile(calibrated, 75)
+            background = calibrated[calibrated < threshold]
+
+            if len(background) == 0:
+                return 1e10  # No background pixels
+
+            background_median = np.median(background)
+            if background_median <= 0:
+                return 1e10  # Invalid background
+
+            # Minimize std/median of background pixels
+            background_std = np.std(background)
+            return background_std / background_median
 
         # Use differential evolution for global optimization
         print("Optimizing K (dark scale) in [0.1, 2.0] and N (flat offset) in [-5000, 5000]...")
@@ -252,10 +262,17 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
 
         calibrated_optimized = (self.image - dark_corrected) / flat_normalized
 
-        # Calculate final statistics
+        # Calculate final statistics (overall)
         final_variance = np.var(calibrated_optimized)
         final_mean = np.mean(calibrated_optimized)
         final_std = np.sqrt(final_variance)
+
+        # Calculate background statistics (same as optimization target)
+        threshold = np.percentile(calibrated_optimized, 75)
+        background = calibrated_optimized[calibrated_optimized < threshold]
+        background_median = np.median(background)
+        background_std = np.std(background)
+        background_cov = background_std / background_median
 
         # Update the display with optimized image
         self.currentImage = np.rot90(calibrated_optimized)
@@ -266,17 +283,23 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         print("\n" + "-"*50)
         print("OPTIMIZATION RESULTS:")
         print("-"*50)
-        print(f"Optimal dark scale (K):     {optimal_K:.4f}")
-        print(f"Dark bias correction:       {bias_dark:.2f}")
-        print(f"Optimal flat offset (N):    {optimal_N:.2f}")
-        print(f"Flat field mean (corrected):{flat_mean:.2f}")
-        print(f"Minimized std/mean (CoV):   {optimal_ratio:.4f}")
-        print(f"Image mean:                 {final_mean:.2f}")
-        print(f"Image variance:             {final_variance:.2f}")
-        print(f"Image std deviation:        {final_std:.2f}")
+        print(f"Optimal dark scale (K):        {optimal_K:.4f}")
+        print(f"Dark bias correction:          {bias_dark:.2f}")
+        print(f"Optimal flat offset (N):       {optimal_N:.2f}")
+        print(f"Flat field mean (corrected):   {flat_mean:.2f}")
         print("-"*50)
-        print(f"Dark mean before:           {dark_mean:.2f}")
-        print(f"Dark mean after correction: {np.mean(dark_corrected):.2f}")
+        print("BACKGROUND STATISTICS (optimized for uniformity):")
+        print(f"Background CoV (minimized):    {optimal_ratio:.4f}")
+        print(f"Background median:             {background_median:.2f}")
+        print(f"Background std:                {background_std:.2f}")
+        print("-"*50)
+        print("OVERALL IMAGE STATISTICS:")
+        print(f"Image mean:                    {final_mean:.2f}")
+        print(f"Image variance:                {final_variance:.2f}")
+        print(f"Image std deviation:           {final_std:.2f}")
+        print("-"*50)
+        print(f"Dark mean before:              {dark_mean:.2f}")
+        print(f"Dark mean after correction:    {np.mean(dark_corrected):.2f}")
         print("="*50 + "\n")
 
         # Update the display
@@ -285,10 +308,10 @@ class FlatFieldViewer(QtWidgets.QMainWindow):
         # Show a message box with results
         msg = f"Optimization complete!\n\n"
         msg += f"Optimal K (dark scale): {optimal_K:.4f}\n"
-        msg += f"Optimal N (flat offset): {optimal_N:.2f}\n"
-        msg += f"Std/Mean ratio (CoV): {optimal_ratio:.4f}\n"
-        msg += f"Image mean: {final_mean:.2f}\n"
-        msg += f"Image std: {final_std:.2f}\n"
+        msg += f"Optimal N (flat offset): {optimal_N:.2f}\n\n"
+        msg += f"Background CoV (optimized): {optimal_ratio:.4f}\n"
+        msg += f"Background median: {background_median:.2f}\n"
+        msg += f"Background std: {background_std:.2f}\n"
         QtWidgets.QMessageBox.information(self, 'Optimization Complete', msg)
 
 
