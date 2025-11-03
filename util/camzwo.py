@@ -130,7 +130,7 @@ class CameraWorker(QObject):
                 frame = self.camera.GetLiveFrame()
                 if frame is not None:
                     self.new_frame_ready.emit(frame)
-                time.sleep(0.01) # Small delay for responsiveness
+                time.sleep(0.03) # Small delay for responsiveness
             else:
                 # Single-frame mode: non-blocking polling loop
                 self.exposure_started.emit(self.camera.get_exposure())
@@ -428,7 +428,7 @@ class UI:
 
 
         if (self.cnt % 1 == 0):
-            ipc.set_val("bump", [random.uniform(-1, 1),random.uniform(-1, 1)])
+            ipc.set_val("bump", [random.uniform(-5, 5),random.uniform(-5, 5)])
             print("RND")
 
 
@@ -544,7 +544,7 @@ class UI:
 
 # Find the index of the maximum value
         if (self.denoise):
-            self.array = remove_telegraph_noise(self.array)
+            self.array = filter_outliers_simple(self.array)
 
 
         #self.array[195, 1992] = self.array[195, 1993]
@@ -594,7 +594,7 @@ class UI:
     def mainloop(self, args, camera):
         self.t0 = time.perf_counter()
         while(self.win.quit == 0):
-            time.sleep(0.01) # Keep the loop from running too fast
+            time.sleep(0.003) # Keep the loop from running too fast
             if (self.mover.moving()):
                 rx, ry = self.mover.rate()
                 sky.rate(rx * 4.0, ry * 4.0)

@@ -515,12 +515,12 @@ class UI:
 
     def handle_periodic_recenter_check(self):
         """Periodically checks if the AO has drifted too far and triggers a mount recenter."""
-        if self.guider.is_guiding and (time.time() - self.last_recenter_check_time > 60):
+        if self.guider.is_guiding and (time.time() - self.last_recenter_check_time > 10):
             pico_x, pico_y = pico_device.get_ao()
             log_main.info(f"Periodic check: Pico offset = ({pico_x}, {pico_y})")
 
-            if abs(pico_x) > 150 or abs(pico_y) > 150:
-                log_main.info(f"Pico offset > 150, triggering mount recenter.")
+            if abs(pico_x) > 80 or abs(pico_y) > 80:
+                log_main.info(f"Pico offset > 90, triggering mount recenter.")
                 self.recenter_mount()
             
             self.last_recenter_check_time = time.time()
@@ -528,7 +528,7 @@ class UI:
     def handle_proactive_bumping(self):
         """Periodically applies a small mount bump based on the long-term drift trend."""
         PROACTIVE_BUMP_INTERVAL = 30  # seconds
-        MIN_CORRECTIONS_FOR_TREND = 4
+        MIN_CORRECTIONS_FOR_TREND = 2224
 
         if self.guider.is_guiding and (time.time() - self.last_proactive_bump_time > PROACTIVE_BUMP_INTERVAL):
             if len(self.mount_corrector.correction_history) >= MIN_CORRECTIONS_FOR_TREND:
