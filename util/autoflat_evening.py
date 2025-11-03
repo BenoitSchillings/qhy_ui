@@ -19,12 +19,12 @@ except ImportError:
 
 # --- Configuration ---
 CAM_NAME = "2600"
-EXPOSURE_S = 0.15
+EXPOSURE_S = 0.007
 GAIN = 100
 # Start capturing when brightness drops BELOW this value.
-UPPER_BRIGHTNESS_THRESHOLD = 29000.0
+UPPER_BRIGHTNESS_THRESHOLD = 25000.0
 # Stop capturing when brightness drops BELOW this value.
-LOWER_BRIGHTNESS_THRESHOLD = 8000.0
+LOWER_BRIGHTNESS_THRESHOLD = 17000.0
 
 class AcquisitionWorker(QObject):
     """
@@ -125,9 +125,9 @@ class AcquisitionWorker(QObject):
             mean_image = sum_image / bright_frames_count
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"mean_flat_red_{timestamp}.fits"
+            filename = f"mean_flat_clear_{timestamp}.fits"
 
-            hdu = fits.PrimaryHDU(mean_image.astype(np.uint16))
+            hdu = fits.PrimaryHDU(mean_image.astype(np.float32))
             hdu.header['EXPOSURE'] = (EXPOSURE_S, 'Exposure time in seconds')
             hdu.header['GAIN'] = (GAIN, 'Camera gain')
             hdu.header['NFRAMES'] = (bright_frames_count, 'Number of frames averaged')

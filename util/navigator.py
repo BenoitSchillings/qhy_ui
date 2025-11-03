@@ -470,7 +470,7 @@ class NavigatorWindow(QWidget):
         elif d_ra == 0.0 and d_dec == 0.0:
             action = "IDLE"
         else:
-            action = f"SLEWING (RA: {d_ra:+.2f}\", Dec: {d_dec:+.2f}")"
+            action = f"SLEWING (RA: {d_ra:+.2f}\", Dec: {d_dec:+.2f}"
 
         self.status_label.setText(f"MODE: {mode} | STATUS: {action}")
 

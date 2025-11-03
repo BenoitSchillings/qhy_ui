@@ -331,7 +331,7 @@ class sky6RASCOMTele(object):
         dx = min(dx, 9.9)
         dy = max(dy, -9.9)
         dy = min(dy, 9.9)
-        print("jog ",dx,dy)
+        #print("jog ",dx,dy)
         quote = '"'
         
         cmd = None 
@@ -343,11 +343,11 @@ class sky6RASCOMTele(object):
         
         if (not(cmd is None)):
             command = """
-                var Out = \"\";
-                sky6RASCOMTele."
+                var Out = "";
+                sky6RASCOMTele."""
             command = command + cmd + "\n"
 
-            print(command)
+            #print(command)
             output = self.conn._send(command).splitlines()
             #print(output)
 
@@ -360,12 +360,12 @@ class sky6RASCOMTele(object):
         
         if (not(cmd1 is None)):
             command = """
-                var Out = \"\";
-                sky6RASCOMTele."
+                var Out = "";
+                sky6RASCOMTele."""
             command = command + cmd1 + "\n"
-            #print(command)
+            print(command)
             output = self.conn._send(command).splitlines()
-            #print(output)
+            print(output)
 
 
 #-------------------------------------------------------------------------

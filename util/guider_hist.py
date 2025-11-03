@@ -43,7 +43,7 @@ class guider:
         # --- Guiding Parameters ---
         self.ao_gain_x = 0.7
         self.ao_gain_y = 0.7
-        self.max_ao_correction_pix = 25.0  # Max error before skipping correction
+        self.max_ao_correction_pix = 45.0  # Max error before skipping correction
         self.guide_loop_delay_ms = 200  # Minimum time between AO corrections
 
         # Any star movement smaller than this magnitude is ignored as seeing/noise.
@@ -345,8 +345,8 @@ class guider:
                 self.ao_gain_y *= 1.05
 
             # Clamp gains to a safe range
-            self.ao_gain_x = np.clip(self.ao_gain_x, 0.1, 2.0)
-            self.ao_gain_y = np.clip(self.ao_gain_y, 0.1, 2.0)
+            self.ao_gain_x = np.clip(self.ao_gain_x, 0.1, 1.0)
+            self.ao_gain_y = np.clip(self.ao_gain_y, 0.1, 1.0)
 
         self.prev_dx, self.prev_dy = dx, dy
         # --- End Dynamic Gain ---
