@@ -34,10 +34,14 @@ class MountCorrector:
         # New state for tracking rate adjustment
         self.guide_rate_ra_arcsec_per_sec = 0
         self.guide_rate_dec_arcsec_per_sec = 0
-        self.correction_history = collections.deque(maxlen=100) # Store last 100 corrections
+        self.correction_history = collections.deque(maxlen=200) # Store last 200 corrections for better trend analysis
         self.last_rate_adjustment_time = time.time()
         self.ra_bump_rate = 0.0
         self.dec_bump_rate = 0.0
+
+        # Cumulative tracking rate offsets (additive corrections)
+        self.cumulative_rate_offset_ra = 0.0  # arcsec/sec
+        self.cumulative_rate_offset_dec = 0.0  # arcsec/sec
 
 
     def save_state(self, filename):
@@ -50,6 +54,8 @@ class MountCorrector:
             'mount_dx2': self.mount_dx2, 'mount_dy2': self.mount_dy2,
             'guide_rate_ra_arcsec_per_sec': self.guide_rate_ra_arcsec_per_sec,
             'guide_rate_dec_arcsec_per_sec': self.guide_rate_dec_arcsec_per_sec,
+            'cumulative_rate_offset_ra': self.cumulative_rate_offset_ra,
+            'cumulative_rate_offset_dec': self.cumulative_rate_offset_dec,
         }
         try:
             with open(filename, "wb") as f:
@@ -63,13 +69,15 @@ class MountCorrector:
         try:
             with open(filename, "rb") as f:
                 settings = pickle.load(f)
-            
+
             self.mount_dx1 = settings.get('mount_dx1', 0)
             self.mount_dy1 = settings.get('mount_dy1', 0)
             self.mount_dx2 = settings.get('mount_dx2', 0)
             self.mount_dy2 = settings.get('mount_dy2', 0)
             self.guide_rate_ra_arcsec_per_sec = settings.get('guide_rate_ra_arcsec_per_sec', 0)
             self.guide_rate_dec_arcsec_per_sec = settings.get('guide_rate_dec_arcsec_per_sec', 0)
+            self.cumulative_rate_offset_ra = settings.get('cumulative_rate_offset_ra', 0.0)
+            self.cumulative_rate_offset_dec = settings.get('cumulative_rate_offset_dec', 0.0)
 
             det = self.mount_dx1 * self.mount_dy2 - self.mount_dx2 * self.mount_dy1
             if abs(det) > 1e-3:
@@ -250,7 +258,10 @@ class MountCorrector:
             log.info("Proactive bump is too small. Skipping.")
 
     def adjust_tracking_rate(self):
-        """Analyzes correction history and applies a persistent tracking rate adjustment."""
+        """
+        Analyzes correction history and applies a persistent tracking rate adjustment.
+        Uses cumulative additive corrections that build up over time.
+        """
         if len(self.correction_history) < 10:
             log.info("Not enough correction samples to adjust tracking rate.")
             return
@@ -258,7 +269,7 @@ class MountCorrector:
         # Calculate total jog and time duration from history
         total_ra_jog = sum(c['ra_jog'] for c in self.correction_history)
         total_dec_jog = sum(c['dec_jog'] for c in self.correction_history)
-        
+
         time_delta = self.correction_history[-1]['t'] - self.correction_history[0]['t']
         if time_delta < 1.0: # Avoid division by zero
             return
@@ -269,19 +280,43 @@ class MountCorrector:
 
         # Convert drift rate to arcseconds/second using the calibrated guide rate
         # The negative sign is because we want to apply a rate that is OPPOSITE to the drift.
-        rate_correction_ra = -1 * drift_ra_jog_per_sec * self.guide_rate_ra_arcsec_per_sec
-        rate_correction_dec = -1 * drift_dec_jog_per_sec * self.guide_rate_dec_arcsec_per_sec
+        incremental_correction_ra = -1 * drift_ra_jog_per_sec * self.guide_rate_ra_arcsec_per_sec
+        incremental_correction_dec = -1 * drift_dec_jog_per_sec * self.guide_rate_dec_arcsec_per_sec
 
-        logging.getLogger('aoscale').info(f"--- ADJUST TRACKING RATE ---")
+        # ADD this correction to our cumulative offset (additive tracking)
+        self.cumulative_rate_offset_ra += incremental_correction_ra
+        self.cumulative_rate_offset_dec += incremental_correction_dec
+
+        logging.getLogger('aoscale').info(f"--- ADJUST TRACKING RATE (ADDITIVE) ---")
         logging.getLogger('aoscale').info(f"Found {len(self.correction_history)} corrections over {time_delta:.1f}s.")
         logging.getLogger('aoscale').info(f"Total Jog: RA={total_ra_jog:.3f}s, DEC={total_dec_jog:.3f}s")
         logging.getLogger('aoscale').info(f"Drift Rate (jog s/s): RA={drift_ra_jog_per_sec:.4f}, DEC={drift_dec_jog_per_sec:.4f}")
-        logging.getLogger('aoscale').info(f"Rate Correction (arcsec/s): RA={rate_correction_ra:.4f}, DEC={rate_correction_dec:.4f}")
+        logging.getLogger('aoscale').info(f"Incremental Correction (arcsec/s): RA={incremental_correction_ra:.4f}, DEC={incremental_correction_dec:.4f}")
+        logging.getLogger('aoscale').info(f"Cumulative Offset (arcsec/s): RA={self.cumulative_rate_offset_ra:.4f}, DEC={self.cumulative_rate_offset_dec:.4f}")
 
-        # Apply the new rate to the mount
-        # Note: TheSkyX SetTracking adds to the existing rate, so we send the correction directly.
-        self.skyx.rate(rate_correction_ra, rate_correction_dec)
-        log.info(f"Applied tracking rate correction: RA={rate_correction_ra:.4f}, DEC={rate_correction_dec:.4f} arcsec/s")
+        # Apply the TOTAL cumulative rate offset to the mount
+        self.skyx.rate(self.cumulative_rate_offset_ra, self.cumulative_rate_offset_dec)
+        log.info(f"Applied cumulative tracking rate: RA={self.cumulative_rate_offset_ra:.4f}, DEC={self.cumulative_rate_offset_dec:.4f} arcsec/s")
+        log.info(f"  (incremental change: RA={incremental_correction_ra:.4f}, DEC={incremental_correction_dec:.4f} arcsec/s)")
 
         # Clear history so the next adjustment is based on new data
         self.correction_history.clear()
+
+        # Save state to persist cumulative offsets
+        self.save_state("mount_guide.data")
+
+    def reset_tracking_rate(self):
+        """
+        Resets the cumulative tracking rate offsets and restores mount to default sidereal rate.
+        Useful when starting a new session or if tracking has drifted significantly.
+        """
+        log.info("Resetting tracking rate to default sidereal.")
+        self.cumulative_rate_offset_ra = 0.0
+        self.cumulative_rate_offset_dec = 0.0
+        self.correction_history.clear()
+
+        # Reset mount to default sidereal tracking
+        self.skyx.stop()  # This calls SetTracking(1, 1, 0, 0) = default sidereal rate
+
+        log.info("Tracking rate reset complete.")
+        self.save_state("mount_guide.data")

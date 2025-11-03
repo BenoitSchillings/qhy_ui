@@ -140,6 +140,199 @@ def find_high_value_element(array, size=3):
     return cols[0], rows[0], filtered_array[rows[0], cols[0]]
 
 
+# ZWO Camera Gain Table (e-/ADU for different gain settings)
+ZWO_GAIN_TABLE = {
+    0: 0.26,    # Unity gain (lowest gain setting)
+    50: 0.19,
+    100: 0.13,
+    150: 0.09,
+    200: 0.065,
+    250: 0.047,
+    300: 0.033,  # High gain
+    350: 0.024,
+    400: 0.016
+}
+
+def get_camera_gain(gain_setting):
+    """Get camera gain in e-/ADU, interpolating if needed."""
+    if gain_setting in ZWO_GAIN_TABLE:
+        return ZWO_GAIN_TABLE[gain_setting]
+
+    # Interpolate
+    gains = sorted(ZWO_GAIN_TABLE.keys())
+    if gain_setting < gains[0]:
+        return ZWO_GAIN_TABLE[gains[0]]
+    if gain_setting > gains[-1]:
+        return ZWO_GAIN_TABLE[gains[-1]]
+
+    # Linear interpolation
+    for i in range(len(gains)-1):
+        if gains[i] <= gain_setting <= gains[i+1]:
+            t = (gain_setting - gains[i]) / (gains[i+1] - gains[i])
+            return ZWO_GAIN_TABLE[gains[i]] * (1-t) + ZWO_GAIN_TABLE[gains[i+1]] * t
+
+    return 0.1  # default
+
+def estimate_centroid_noise(star_peak, camera_gain, fwhm=3.0, readnoise=2.0):
+    """
+    Estimate centroid uncertainty from photon statistics.
+
+    Args:
+        star_peak: peak pixel value (ADU)
+        camera_gain: e-/ADU from camera gain table
+        fwhm: PSF full width half maximum (pixels)
+        readnoise: camera read noise (electrons)
+
+    Returns:
+        centroid_noise: expected centroid uncertainty (pixels)
+    """
+    # Estimate total star flux (ADU) from peak
+    # For Gaussian PSF: peak ≈ total_flux / (2π σ²) where σ = FWHM/2.355
+    sigma_psf = fwhm / 2.355
+    star_flux_adu = star_peak * 2 * np.pi * sigma_psf**2
+
+    # Convert to electrons
+    star_flux_electrons = star_flux_adu / camera_gain
+
+    # Background contribution (estimate from typical sky)
+    background_electrons = 100  # typical for short exposures
+
+    # SNR
+    snr = star_flux_electrons / np.sqrt(star_flux_electrons + background_electrons + readnoise**2)
+    snr = max(snr, 1.0)  # Avoid division by zero
+
+    # Centroid uncertainty (empirical factor K≈0.7 for weighted centroid)
+    K = 0.7
+    centroid_noise = (fwhm / snr) * K
+
+    return centroid_noise
+
+
+class BayesianSingleStarGuider:
+    """
+    Kalman filter for optimal single-star centroid estimation.
+    Reduces noise while tracking real motion (drift).
+    """
+    def __init__(self, dt=0.1):
+        self.dt = dt  # Frame time in seconds
+
+        # State: [x, y, vx, vy] - position + velocity
+        self.state = np.array([0., 0., 0., 0.])
+
+        # Uncertainty covariance
+        self.P = np.eye(4) * 100
+
+        # Process model: constant velocity + random acceleration
+        self.F = np.array([
+            [1, 0, self.dt, 0],      # x' = x + vx*dt
+            [0, 1, 0, self.dt],      # y' = y + vy*dt
+            [0, 0, 1, 0],            # vx' = vx
+            [0, 0, 0, 1]             # vy' = vy
+        ])
+
+        # Process noise (mount drift changes, vibration)
+        self.Q = np.diag([0.01, 0.01, 0.1, 0.1])
+
+        # Measurement model: observe position only
+        self.H = np.array([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0]
+        ])
+
+        # Adaptive seeing estimation
+        self.innovation_history = collections.deque(maxlen=20)
+        self.estimated_seeing = 0.5  # Initial seeing estimate (pixels)
+
+        self.is_initialized = False
+        self.frame_count = 0
+
+    def reset(self):
+        """Reset filter when star is reacquired or guide restarts."""
+        self.state = np.array([0., 0., 0., 0.])
+        self.P = np.eye(4) * 100
+        self.is_initialized = False
+        self.frame_count = 0
+        self.innovation_history.clear()
+        self.estimated_seeing = 0.5
+        log_main.info("Kalman filter reset")
+
+    def update(self, measurement, measurement_noise):
+        """
+        Update filter with new centroid measurement.
+
+        Args:
+            measurement: [x, y] centroid position
+            measurement_noise: estimated centroid uncertainty (pixels)
+
+        Returns:
+            filtered_position: [x, y] filtered position
+            uncertainty: [σx, σy] position uncertainty
+        """
+        measurement = np.array(measurement, dtype=float)
+
+        # Initialize on first measurement
+        if not self.is_initialized:
+            self.state[:2] = measurement
+            self.state[2:] = 0  # Zero initial velocity
+            self.is_initialized = True
+            log_main.info(f"Kalman filter initialized at ({measurement[0]:.2f}, {measurement[1]:.2f})")
+            return measurement, np.array([1.0, 1.0])
+
+        # Predict step
+        self.state = self.F @ self.state
+        self.P = self.F @ self.P @ self.F.T + self.Q
+
+        # Combine photon noise with seeing
+        total_noise = np.sqrt(measurement_noise**2 + self.estimated_seeing**2)
+        R = np.eye(2) * total_noise**2
+
+        # Innovation (prediction error)
+        y = measurement - (self.H @ self.state)
+
+        # Innovation covariance
+        S = self.H @ self.P @ self.H.T + R
+
+        # Kalman gain (optimal weighting)
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+
+        # Update state (posterior mean)
+        self.state = self.state + K @ y
+
+        # Update covariance (posterior uncertainty)
+        self.P = (np.eye(4) - K @ self.H) @ self.P
+
+        # Track innovations for adaptive seeing estimation
+        innovation_magnitude = np.linalg.norm(y)
+        self.innovation_history.append(innovation_magnitude)
+
+        # Update seeing estimate adaptively
+        if len(self.innovation_history) >= 20:
+            median_innovation = np.median(self.innovation_history)
+            # Exponential moving average
+            self.estimated_seeing = 0.95 * self.estimated_seeing + 0.05 * median_innovation
+
+        self.frame_count += 1
+
+        # Return filtered position and uncertainty
+        uncertainty = np.sqrt(np.diag(self.P[:2, :2]))
+        return self.state[:2].copy(), uncertainty
+
+    def get_velocity(self):
+        """Return estimated velocity in pixels/frame."""
+        if not self.is_initialized:
+            return np.array([0., 0.])
+        return self.state[2:].copy()
+
+    def get_diagnostics(self):
+        """Return diagnostic information."""
+        return {
+            'position': self.state[:2].copy() if self.is_initialized else None,
+            'velocity': self.get_velocity(),
+            'uncertainty': np.sqrt(np.diag(self.P[:2, :2])) if self.is_initialized else np.array([10., 10.]),
+            'estimated_seeing': self.estimated_seeing,
+            'frame_count': self.frame_count
+        }
+
 
 class fake_cam:
     def __init__(self, temp, exp, gain, crop):
@@ -229,10 +422,19 @@ class UI:
         self.guider = guider
         self.mount_corrector = mount_corrector
         self.auto_level = False
-        
+
         self.rms = 0
         self.pos = QPoint(256,256)
         self.array = np.random.randint(0,65000, (sx,sy), dtype=np.uint16)
+
+        # Kalman filter setup
+        self.use_kalman = args.kalman  # Initialize from command line
+        self.kalman_filter = BayesianSingleStarGuider(dt=0.1)
+        self.camera_gain_setting = args.gain
+        self.camera_gain = get_camera_gain(self.camera_gain_setting)
+        log_main.info(f"Camera gain setting: {self.camera_gain_setting}, gain: {self.camera_gain:.4f} e-/ADU")
+        if args.kalman:
+            log_main.info("Kalman filter enabled via command line")
 
         self.win = FrameWindow(self)
         self.EDGE = 32
@@ -310,6 +512,10 @@ class UI:
         self.dynamic_gain_checkbox = QtWidgets.QCheckBox("Enable Dynamic Gain")
         rightlayout.layout().addWidget(self.dynamic_gain_checkbox)
 
+        self.kalman_checkbox = QtWidgets.QCheckBox("Enable Kalman Filter")
+        self.kalman_checkbox.setChecked(args.kalman)  # Set from command line
+        rightlayout.layout().addWidget(self.kalman_checkbox)
+
         self.guide_button =  QtWidgets.QPushButton("Guide")
         rightlayout.layout().addWidget(self.guide_button)
         self.bump_button =  QtWidgets.QPushButton("bump")
@@ -355,10 +561,12 @@ class UI:
         self.guide_button.clicked.connect(self.Guide_buttonClick)
         self.bump_button.clicked.connect(self.rand_move)
         self.dynamic_gain_checkbox.stateChanged.connect(self.toggle_dynamic_gain_click)
+        self.kalman_checkbox.stateChanged.connect(self.toggle_kalman_click)
   
         self.win.show()
         self.last_recenter_check_time = time.time()
         self.last_proactive_bump_time = time.time()
+        self.last_mount_correction_time = 0  # Initialize to 0 (will be set on first correction)
     
     def rand_move(self):
         self.guider.bump(0.5, 0.5)
@@ -366,6 +574,15 @@ class UI:
     def toggle_dynamic_gain_click(self):
         """Handler for the dynamic gain checkbox."""
         self.guider.toggle_dynamic_gain()
+
+    def toggle_kalman_click(self):
+        """Handler for the Kalman filter checkbox."""
+        self.use_kalman = self.kalman_checkbox.isChecked()
+        if self.use_kalman:
+            log_main.info("Kalman filter enabled")
+        else:
+            log_main.info("Kalman filter disabled")
+            self.kalman_filter.reset()
 
     def Update_buttonClick(self):
         if (self.update_state == 1):
@@ -396,6 +613,9 @@ class UI:
         else:
             self.guider.start_guide()
             self.guider.set_pos(self.cx, self.cy)
+            # Reset Kalman filter when starting guide
+            if self.use_kalman:
+                self.kalman_filter.reset()
             log_main.info(f"Start Guide. Reference star set to ({self.cx:.2f}, {self.cy:.2f})")
             self.guide_button.setText("Stop Guide")
 
@@ -430,7 +650,8 @@ class UI:
         self.txt2.setText(f"Pico Pos: X={pico_x}, Y={pico_y}")
         self.update_pico_plot(pico_x, pico_y)
 
-        self.txt5.setText(f"Mount Bump Rate: RA={self.mount_corrector.ra_bump_rate:.4f} s/s, Dec={self.mount_corrector.dec_bump_rate:.4f} s/s")
+        self.txt5.setText(f"Mount Bump Rate: RA={self.mount_corrector.ra_bump_rate:.4f} s/s, Dec={self.mount_corrector.dec_bump_rate:.4f} s/s | "
+                         f"Track Rate Offset: RA={self.mount_corrector.cumulative_rate_offset_ra:.4f}\"/s, Dec={self.mount_corrector.cumulative_rate_offset_dec:.4f}\"/s")
 
         self.txt6.setText(f"AO Gain: X={self.guider.ao_gain_x:.2f}, Y={self.guider.ao_gain_y:.2f}")
 
@@ -447,7 +668,13 @@ class UI:
             self.imv.setLevels(vmin, vmax)
             self.auto_level = False
 
-        self.txt4.setText("X="  + "{:.2f}".format(self.ccx) + " Y="  + "{:.2f}".format(self.ccy) )
+        # Show position (and Kalman status if enabled)
+        if self.use_kalman and hasattr(self, 'cx_raw'):
+            dx = self.cx - self.cx_raw
+            dy = self.cy - self.cy_raw
+            self.txt4.setText(f"X={self.ccx:.2f} Y={self.ccy:.2f} [K: Δ=({dx:.2f},{dy:.2f})]")
+        else:
+            self.txt4.setText("X="  + "{:.2f}".format(self.ccx) + " Y="  + "{:.2f}".format(self.ccy) )
         
         pos = self.clip(self.pos)
         sub = self.array[int(pos.y())-self.EDGE:int(pos.y())+self.EDGE, int(pos.x())-self.EDGE:int(pos.x())+self.EDGE].copy()
@@ -500,7 +727,35 @@ class UI:
 
         self.array = result
         max_y, max_x, val = finder.find_high_value_element(self.array[32:-32, 32:-32])
-        self.cy, self.cx, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
+
+        # Compute raw centroid
+        cy_raw, cx_raw, cv = compute_centroid_improved(self.array, max_y + 32, max_x + 32)
+
+        # Store raw values
+        self.cx_raw = cx_raw
+        self.cy_raw = cy_raw
+
+        # Optionally apply Kalman filter
+        if self.use_kalman:
+            # Estimate measurement noise from photon statistics
+            measurement_noise = estimate_centroid_noise(val, self.camera_gain)
+
+            # Update Kalman filter
+            filtered_pos, uncertainty = self.kalman_filter.update([cx_raw, cy_raw], measurement_noise)
+            self.cx, self.cy = filtered_pos[0], filtered_pos[1]
+            self.kalman_uncertainty = uncertainty
+
+            # Log diagnostics periodically
+            if self.cnt % 100 == 0:
+                diag = self.kalman_filter.get_diagnostics()
+                log_main.info(f"Kalman: seeing={diag['estimated_seeing']:.3f}px, "
+                             f"uncertainty=({uncertainty[0]:.3f}, {uncertainty[1]:.3f})px, "
+                             f"velocity=({diag['velocity'][0]:.3f}, {diag['velocity'][1]:.3f})px/frame")
+        else:
+            # Use raw centroid
+            self.cx, self.cy = cx_raw, cy_raw
+            self.kalman_uncertainty = None
+
         #log_main.info("calc centroid = %f, %f, %f", self.cx, self.cy, val)
         return True
 
@@ -528,7 +783,7 @@ class UI:
     def handle_proactive_bumping(self):
         """Periodically applies a small mount bump based on the long-term drift trend."""
         PROACTIVE_BUMP_INTERVAL = 30  # seconds
-        MIN_CORRECTIONS_FOR_TREND = 2224
+        MIN_CORRECTIONS_FOR_TREND = 20  # Need ~20 corrections = 1-2 hours of guiding
 
         if self.guider.is_guiding and (time.time() - self.last_proactive_bump_time > PROACTIVE_BUMP_INTERVAL):
             if len(self.mount_corrector.correction_history) >= MIN_CORRECTIONS_FOR_TREND:
@@ -577,6 +832,8 @@ if __name__ == "__main__":
     parser.add_argument("-gain", "--gain", type=int, default = 300, help="camera gain (default 100)")
     parser.add_argument("-crop", "--crop", type=float, default = 1.0, help="crop ratio")
     parser.add_argument("-cam", "--cam", type=str, default = "220", help="cam name")
+    parser.add_argument("-kalman", "--kalman", action="store_true",
+                        help="enable Kalman filter for centroid smoothing (reduces noise 2-3x)")
     args = parser.parse_args()
 
     skyx_controller = skyx.sky6RASCOMTele()
